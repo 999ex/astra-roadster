@@ -5,6 +5,7 @@ import { BLUEPRINT as bp } from '../src/blueprint.js';
 import { createMaterials } from '../src/materials.js';
 import { buildExterior } from '../src/parts/exterior.js';
 import { buildWheels } from '../src/parts/wheels.js';
+import { buildInterior } from '../src/parts/interior.js';
 
 const mats = createMaterials();
 const EXTERIOR = ['ボディシェル', 'ボンネット', 'トランクリッド', 'シザードア左', 'シザードア右', 'フロントバンパー', 'リアディフューザー', 'フロントガラス', 'ドアミラー左', 'ドアミラー右', 'ヘッドライト左', 'ヘッドライト右', 'テールライトバー', 'フロントグリル', 'サイドスカート左', 'サイドスカート右', 'ロールフープ'];
@@ -55,4 +56,17 @@ test('タイヤは地面に接し、右のタイヤは z>0', () => {
     assert.ok(Math.abs(box.min.y) < 0.02, `${s.name} min.y=${box.min.y}`);
     assert.equal(s.object3d.position.z > 0, s.name.startsWith('右'), s.name);
   }
+});
+
+const INTERIOR = ['シート左', 'シート右', 'ステアリング', 'ダッシュボード', 'メーターディスプレイ', 'センターコンソール', 'フロア'];
+
+test('内装は7点', () => {
+  checkSpecs(buildInterior(bp, mats), 'interior', INTERIOR);
+});
+
+test('シートは左右に分かれ、ステアリングは左ハンドル（z<0）', () => {
+  const specs = buildInterior(bp, mats);
+  const z = (n) => specs.find((s) => s.name === n).object3d.position.z;
+  assert.ok(z('シート右') > 0 && z('シート左') < 0);
+  assert.ok(z('ステアリング') < 0);
 });
