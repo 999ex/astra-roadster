@@ -7,8 +7,9 @@ import { createMaterials } from './materials.js';
 import { createRegistry } from './registry.js';
 import { createExplodeController } from './explode.js';
 import { buildExterior } from './parts/exterior.js';
+import { buildWheels } from './parts/wheels.js';
 
-const BUILDERS = [buildExterior];
+const BUILDERS = [buildExterior, buildWheels];
 
 const stage = createStage(document.getElementById('stage'));
 applyTheme(stage, 'gallery');

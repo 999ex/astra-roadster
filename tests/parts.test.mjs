@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { BLUEPRINT as bp } from '../src/blueprint.js';
 import { createMaterials } from '../src/materials.js';
 import { buildExterior } from '../src/parts/exterior.js';
+import { buildWheels } from '../src/parts/wheels.js';
 
 const mats = createMaterials();
 const EXTERIOR = ['ボディシェル', 'ボンネット', 'トランクリッド', 'シザードア左', 'シザードア右', 'フロントバンパー', 'リアディフューザー', 'フロントガラス', 'ドアミラー左', 'ドアミラー右', 'ヘッドライト左', 'ヘッドライト右', 'テールライトバー', 'フロントグリル', 'サイドスカート左', 'サイドスカート右', 'ロールフープ'];
@@ -32,5 +33,26 @@ test('シザードアはヒンジを持ち、ヒンジは前端にある', () =>
     assert.ok(door.object3d.userData.hinge, name);
     const box = new THREE.Box3().setFromObject(door.object3d);
     assert.ok(door.object3d.position.x >= box.max.x - 1e-6, name);
+  }
+});
+
+const WHEEL_NAMES = ['右前', '左前', '右後', '左後'].flatMap((p) => ['タイヤ', 'ホイール', 'ブレーキディスク', 'キャリパー'].map((k) => p + k));
+
+test('足まわりは16点', () => {
+  checkSpecs(buildWheels(bp, mats), 'wheels', WHEEL_NAMES);
+});
+
+test('回転するのはタイヤ・ホイール・ディスクの12点で、キャリパーは回らない', () => {
+  const specs = buildWheels(bp, mats);
+  const spinning = specs.filter((s) => s.object3d.userData.spin);
+  assert.equal(spinning.length, 12);
+  assert.ok(specs.filter((s) => s.name.endsWith('キャリパー')).every((s) => !s.object3d.userData.spin));
+});
+
+test('タイヤは地面に接し、右のタイヤは z>0', () => {
+  for (const s of buildWheels(bp, mats).filter((x) => x.name.endsWith('タイヤ'))) {
+    const box = new THREE.Box3().setFromObject(s.object3d);
+    assert.ok(Math.abs(box.min.y) < 0.02, `${s.name} min.y=${box.min.y}`);
+    assert.equal(s.object3d.position.z > 0, s.name.startsWith('右'), s.name);
   }
 });
