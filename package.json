@@ -1,0 +1,16 @@
+{
+  "name": "astra-roadster-viewer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "extract": "node tools/extract-blueprint.mjs",
+    "build": "node tools/build.mjs",
+    "test": "node --test",
+    "serve": "node tools/serve.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "pngjs": "^7.0.0",
+    "three": "0.170.0"
+  }
+}
