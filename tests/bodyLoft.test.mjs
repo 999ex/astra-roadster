@@ -45,3 +45,35 @@ test('caps を付けると三角形が増え、pointOnSide は右側の点を返
   const [x, y, z] = pointOnSide(bp, 0.5, 0.5, 1);
   assert.ok(Math.abs(x - uToX(bp, 0.5)) < 1e-9 && y > 0 && z > 0);
 });
+
+test('キャップの法線は外向き: 鼻先は+X、尾部は-X', () => {
+  const uSteps = 4;
+  const noCaps = loftGrid(bp, { uSteps });
+  const withCaps = loftGrid(bp, { uSteps, caps: true });
+  const noCapsTriCount = noCaps.indices.length / 3;
+  const withCapsTriCount = withCaps.indices.length / 3;
+  const R = (withCapsTriCount - noCapsTriCount) / 2; // 鼻先R個 + 尾部R個
+  const pos = withCaps.positions;
+  const idx = withCaps.indices;
+
+  const faceNormalX = (t) => {
+    const i0 = idx[t * 3], i1 = idx[t * 3 + 1], i2 = idx[t * 3 + 2];
+    const ux = pos[i1 * 3] - pos[i0 * 3], uy = pos[i1 * 3 + 1] - pos[i0 * 3 + 1], uz = pos[i1 * 3 + 2] - pos[i0 * 3 + 2];
+    const vx = pos[i2 * 3] - pos[i0 * 3], vy = pos[i2 * 3 + 1] - pos[i0 * 3 + 1], vz = pos[i2 * 3 + 2] - pos[i0 * 3 + 2];
+    const nx = uy * vz - uz * vy;
+    const ny = uz * vx - ux * vz;
+    const nz = ux * vy - uy * vx;
+    return { nx, len: Math.hypot(nx, ny, nz) };
+  };
+
+  let checkedNose = 0, checkedTail = 0;
+  for (let t = noCapsTriCount; t < noCapsTriCount + R; t++) {
+    const { nx, len } = faceNormalX(t);
+    if (len > 1e-9) { assert.ok(nx > 0, `nose cap triangle nx=${nx}`); checkedNose++; }
+  }
+  for (let t = noCapsTriCount + R; t < withCapsTriCount; t++) {
+    const { nx, len } = faceNormalX(t);
+    if (len > 1e-9) { assert.ok(nx < 0, `tail cap triangle nx=${nx}`); checkedTail++; }
+  }
+  assert.ok(checkedNose > 0 && checkedTail > 0, 'non-degenerate cap triangles should exist to check');
+});

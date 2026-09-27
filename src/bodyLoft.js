@@ -78,7 +78,15 @@ export function loftGrid(bp, { include = () => true, uSteps = U_STEPS, caps = fa
       const cy = ring.reduce((s, q) => s + q.y, 0) / R;
       const center = pos.length / 3;
       pos.push(uToX(bp, i / uSteps), cy, 0);
-      for (let j = 0; j < R; j++) idx.push(center, i * R + j, i * R + ((j + 1) % R));
+      // 鼻先（i=0, +X）と尾部（i=uSteps, -X）は x について面対称なので、
+      // 同じ巻き順のままだと法線が同じ符号になってしまう。鼻先側だけ巻き順を反転し、
+      // 各キャップの法線が外向き（鼻先=+X、尾部=-X）になるようにする。
+      const flip = i === 0;
+      for (let j = 0; j < R; j++) {
+        const j2 = (j + 1) % R;
+        if (flip) idx.push(center, i * R + j2, i * R + j);
+        else idx.push(center, i * R + j, i * R + j2);
+      }
     }
   }
   return compact(pos, idx, quadCount);

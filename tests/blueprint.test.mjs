@@ -47,6 +47,14 @@ test('コックピット開口は中央付近だけにある', () => {
   assert.ok(bp.cockpitFloor > 0.15 && bp.cockpitFloor < 0.6);
 });
 
+test('holeHalfWidth は開口区間の内部に0の隙間（膜）を持たない', () => {
+  const idx = bp.holeHalfWidth.map((v, i) => (v > 0 ? i : -1)).filter((i) => i >= 0);
+  const first = idx[0], last = idx[idx.length - 1];
+  for (let i = first; i <= last; i++) {
+    assert.ok(bp.holeHalfWidth[i] > 0, `holeHalfWidth[${i}]=${bp.holeHalfWidth[i]} is a gap inside the cockpit opening (first=${first}, last=${last})`);
+  }
+});
+
 test('mergeLargeComponents は大きい成分をすべて残し、小さい成分は除外する', () => {
   // 30x10 の合成マスク: 左に10x10のブロブA（100px）、右に10x10のブロブB（100px）、
   // 中央上部に孤立した1pxのブロブC。A/Bはratio=0.2のしきい値(20px)を超え、Cは超えない。

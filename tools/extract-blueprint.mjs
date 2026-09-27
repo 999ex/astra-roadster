@@ -177,7 +177,10 @@ export function topProfile(m) {
     }
     hole.push(l >= 0 && best > 0.25 * (r - l) ? best / 2 : 0);
   }
-  return { bbox: b, half: fillGaps(half), hole };
+  // ウィンドシールド～カウル部の行は塗装が一切なく、開口幅を直接測れない
+  // （抽出上のギャップ）。開口区間の先頭・末尾の非ゼロ値の間だけを線形補間で埋め、
+  // コックピット開口に穴（膜）ができないようにする。
+  return { bbox: b, half: fillGaps(half), hole: fillGaps(hole) };
 }
 
 // 正面画像: 下端→上端の各行の半幅（最大=1、最小0.35）
