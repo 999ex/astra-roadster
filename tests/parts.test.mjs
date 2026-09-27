@@ -6,6 +6,8 @@ import { createMaterials } from '../src/materials.js';
 import { buildExterior } from '../src/parts/exterior.js';
 import { buildWheels } from '../src/parts/wheels.js';
 import { buildInterior } from '../src/parts/interior.js';
+import { buildChassis } from '../src/parts/chassis.js';
+import { createRegistry } from '../src/registry.js';
 import { cockpitRange, profileAt } from '../src/bodyLoft.js';
 
 const mats = createMaterials();
@@ -94,4 +96,23 @@ test('フロアとダッシュボードはコックピット開口の局所的�
       }
     });
   }
+});
+
+const CORNERS = ['右前', '左前', '右後', '左後'];
+const CHASSIS = [
+  'シャーシフレーム', 'バッテリーケース', ...[1, 2, 3, 4, 5, 6].map((i) => `バッテリーモジュール${i}`),
+  'フロントモーター', 'リアモーター', 'インバーター',
+  ...CORNERS.map((c) => `ドライブシャフト${c}`), ...CORNERS.map((c) => `サスペンション${c}`),
+  'ステアリングラック', 'ラジエーター',
+];
+
+test('シャーシは21点', () => {
+  checkSpecs(buildChassis(bp, mats), 'chassis', CHASSIS);
+});
+
+test('全体で61点、名前は重複せず、グループ別は 17/16/7/21', () => {
+  const reg = createRegistry();
+  for (const build of [buildExterior, buildWheels, buildInterior, buildChassis]) for (const s of build(bp, mats)) reg.add(s);
+  assert.equal(reg.count(), 61);
+  assert.deepEqual(['exterior', 'wheels', 'interior', 'chassis'].map((g) => reg.byGroup(g).length), [17, 16, 7, 21]);
 });

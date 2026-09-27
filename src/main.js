@@ -9,8 +9,9 @@ import { createExplodeController } from './explode.js';
 import { buildExterior } from './parts/exterior.js';
 import { buildWheels } from './parts/wheels.js';
 import { buildInterior } from './parts/interior.js';
+import { buildChassis } from './parts/chassis.js';
 
-const BUILDERS = [buildExterior, buildWheels, buildInterior];
+const BUILDERS = [buildExterior, buildWheels, buildInterior, buildChassis];
 
 const stage = createStage(document.getElementById('stage'));
 applyTheme(stage, 'gallery');
