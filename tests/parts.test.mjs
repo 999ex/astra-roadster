@@ -9,6 +9,7 @@ import { buildInterior } from '../src/parts/interior.js';
 import { buildChassis } from '../src/parts/chassis.js';
 import { createRegistry } from '../src/registry.js';
 import { cockpitRange, profileAt } from '../src/bodyLoft.js';
+import { seatLayout } from '../src/parts/util.js';
 
 const mats = createMaterials();
 const EXTERIOR = ['ボディシェル', 'ボンネット', 'トランクリッド', 'シザードア左', 'シザードア右', 'フロントバンパー', 'リアディフューザー', 'フロントガラス', 'ドアミラー左', 'ドアミラー右', 'ヘッドライト左', 'ヘッドライト右', 'テールライトバー', 'フロントグリル', 'サイドスカート左', 'サイドスカート右', 'ロールフープ'];
@@ -115,4 +116,85 @@ test('全体で61点、名前は重複せず、グループ別は 17/16/7/21', (
   for (const build of [buildExterior, buildWheels, buildInterior, buildChassis]) for (const s of build(bp, mats)) reg.add(s);
   assert.equal(reg.count(), 61);
   assert.deepEqual(['exterior', 'wheels', 'interior', 'chassis'].map((g) => reg.byGroup(g).length), [17, 16, 7, 21]);
+});
+
+// --- Fix round 1: シャーシ/バッテリーが車体下面より上、内装フロアより下にあること。
+// ドライブシャフトの外側ジョイントがタイヤ内側面より内側にあること。フレームが他部品と干渉しないこと。
+
+function maxBcOverX(bp0, xLo, xHi, steps = 40) {
+  let m = -Infinity;
+  for (let i = 0; i <= steps; i++) {
+    const x = xLo + ((xHi - xLo) * i) / steps;
+    const u = Math.min(1, Math.max(0, (bp0.length / 2 - x) / bp0.length));
+    const p = profileAt(bp0, u);
+    if (p.Bc > m) m = p.Bc;
+  }
+  return m;
+}
+
+function meshWorldBoxes(object3d) {
+  object3d.updateMatrixWorld(true);
+  const boxes = [];
+  object3d.traverse((o) => {
+    if (!o.isMesh) return;
+    o.geometry.computeBoundingBox();
+    boxes.push(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld));
+  });
+  return boxes;
+}
+
+function boxesDisjoint(a, b, tol) {
+  const ea = a.clone().expandByScalar(-tol);
+  const eb = b.clone().expandByScalar(-tol);
+  return !ea.intersectsBox(eb);
+}
+
+const BATTERY_NAMES = ['バッテリーケース', ...[1, 2, 3, 4, 5, 6].map((i) => `バッテリーモジュール${i}`)];
+
+test('シャーシフレーム・バッテリーケース・バッテリーモジュールは車体下面より上にある', () => {
+  const chassis = buildChassis(bp, mats);
+  for (const name of ['シャーシフレーム', ...BATTERY_NAMES]) {
+    const obj = chassis.find((s) => s.name === name).object3d;
+    const box = new THREE.Box3().setFromObject(obj);
+    const maxBc = maxBcOverX(bp, box.min.x, box.max.x);
+    assert.ok(box.min.y >= maxBc - 1e-3, `${name}: min.y=${box.min.y.toFixed(4)} < maxBc=${maxBc.toFixed(4)}`);
+  }
+});
+
+test('バッテリーケース・バッテリーモジュールは内装フロアより下にある', () => {
+  const chassis = buildChassis(bp, mats);
+  const floor = seatLayout(bp).floor;
+  for (const name of BATTERY_NAMES) {
+    const obj = chassis.find((s) => s.name === name).object3d;
+    const box = new THREE.Box3().setFromObject(obj);
+    assert.ok(box.max.y <= floor + 1e-3, `${name}: max.y=${box.max.y.toFixed(4)} > floor=${floor.toFixed(4)}`);
+  }
+});
+
+test('ドライブシャフトの外側ジョイントはタイヤ内側面より内側にある', () => {
+  const chassis = buildChassis(bp, mats);
+  const wheels = buildWheels(bp, mats);
+  for (const c of CORNERS) {
+    const shaft = chassis.find((s) => s.name === `ドライブシャフト${c}`).object3d;
+    const tire = wheels.find((s) => s.name === `${c}タイヤ`).object3d;
+    const sBox = new THREE.Box3().setFromObject(shaft);
+    const tBox = new THREE.Box3().setFromObject(tire);
+    const shaftMaxAbsZ = Math.max(Math.abs(sBox.min.z), Math.abs(sBox.max.z));
+    const tireMinAbsZ = Math.min(Math.abs(tBox.min.z), Math.abs(tBox.max.z));
+    assert.ok(shaftMaxAbsZ <= tireMinAbsZ + 1e-3, `${c}: shaft|z|max=${shaftMaxAbsZ.toFixed(4)} > tire|z|min=${tireMinAbsZ.toFixed(4)}`);
+  }
+});
+
+test('シャーシフレームはバッテリー・モーター・ドライブシャフトと干渉しない', () => {
+  const chassis = buildChassis(bp, mats);
+  const frameBoxes = meshWorldBoxes(chassis.find((s) => s.name === 'シャーシフレーム').object3d);
+  const others = [...BATTERY_NAMES, 'フロントモーター', 'リアモーター', ...CORNERS.map((c) => `ドライブシャフト${c}`)];
+  for (const name of others) {
+    const otherBoxes = meshWorldBoxes(chassis.find((s) => s.name === name).object3d);
+    for (const fb of frameBoxes) {
+      for (const ob of otherBoxes) {
+        assert.ok(boxesDisjoint(fb, ob, 1e-3), `シャーシフレーム と ${name} が干渉`);
+      }
+    }
+  }
 });
