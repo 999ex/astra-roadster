@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
+import { MAX_POLAR_ANGLE } from './views.js';
 
 export const PEDESTAL_HEIGHT = 0.08;
 
@@ -31,12 +32,13 @@ export function createStage(canvas) {
   const scene = new THREE.Scene();
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  pmrem.dispose();
 
   const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
   camera.position.set(5.6, 2.4, 4.8);
   const controls = new OrbitControls(camera, canvas);
   controls.target.set(0, 0.55, 0);
-  Object.assign(controls, { enableDamping: true, dampingFactor: 0.08, minDistance: 3, maxDistance: 16, maxPolarAngle: 1.5, enablePan: false });
+  Object.assign(controls, { enableDamping: true, dampingFactor: 0.08, minDistance: 3, maxDistance: 16, maxPolarAngle: MAX_POLAR_ANGLE, enablePan: false });
 
   const key = new THREE.DirectionalLight(0xffffff, 2.2);
   key.position.set(4, 7, 3);

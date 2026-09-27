@@ -19,7 +19,9 @@ function gradientTexture([top, bottom]) {
 
 export function applyTheme(stage, name) {
   const th = THEMES[name];
+  const old = stage.scene.background;
   stage.scene.background = gradientTexture(th.bg);
+  old?.dispose?.();
   stage.floors.grid.visible = th.grid;
   stage.floors.mirror.visible = th.mirror;
   stage.floors.tint.visible = th.mirror;

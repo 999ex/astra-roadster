@@ -9,6 +9,7 @@ export const VIEWS = {
   front: { position: [8.6, 0.8, 0], target: [0, 0.55, 0] },
 };
 export const VIEW_DURATION = 0.8;
+export const MAX_POLAR_ANGLE = 1.56;
 
 export function toSpherical([x, y, z], [tx, ty, tz]) {
   const dx = x - tx, dy = y - ty, dz = z - tz;

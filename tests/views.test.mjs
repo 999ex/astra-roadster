@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { VIEWS, interpolateView, toSpherical, shortestAngle } from '../src/views.js';
+import { VIEWS, interpolateView, toSpherical, shortestAngle, MAX_POLAR_ANGLE } from '../src/views.js';
 
 const close = (a, b, eps = 1e-6) => a.every((v, i) => Math.abs(v - b[i]) < eps);
 
@@ -32,4 +32,11 @@ test('視点の向き: 上は真上から前方が画面上、横は前が画面
   assert.ok(VIEWS.top.position[0] < 0);
   assert.ok(VIEWS.side.position[2] < 0);
   assert.ok(VIEWS.front.position[0] > 0);
+});
+
+test('全視点の極角が MAX_POLAR_ANGLE 以下（OrbitControls の maxPolarAngle でクランプされない）', () => {
+  for (const name of Object.keys(VIEWS)) {
+    const { phi } = toSpherical(VIEWS[name].position, VIEWS[name].target);
+    assert.ok(phi <= MAX_POLAR_ANGLE, `${name}: phi=${phi} > MAX_POLAR_ANGLE=${MAX_POLAR_ANGLE}`);
+  }
 });
