@@ -6,6 +6,7 @@ import { createMaterials } from '../src/materials.js';
 import { buildExterior } from '../src/parts/exterior.js';
 import { buildWheels } from '../src/parts/wheels.js';
 import { buildInterior } from '../src/parts/interior.js';
+import { cockpitRange, profileAt } from '../src/bodyLoft.js';
 
 const mats = createMaterials();
 const EXTERIOR = ['ボディシェル', 'ボンネット', 'トランクリッド', 'シザードア左', 'シザードア右', 'フロントバンパー', 'リアディフューザー', 'フロントガラス', 'ドアミラー左', 'ドアミラー右', 'ヘッドライト左', 'ヘッドライト右', 'テールライトバー', 'フロントグリル', 'サイドスカート左', 'サイドスカート右', 'ロールフープ'];
@@ -69,4 +70,28 @@ test('シートは左右に分かれ、ステアリングは左ハンドル（z<
   const z = (n) => specs.find((s) => s.name === n).object3d.position.z;
   assert.ok(z('シート右') > 0 && z('シート左') < 0);
   assert.ok(z('ステアリング') < 0);
+});
+
+test('フロアとダッシュボードはコックピット開口の局所的な幅からはみ出さない', () => {
+  const { u0, u1 } = cockpitRange(bp);
+  const specs = buildInterior(bp, mats);
+  const v = new THREE.Vector3();
+  for (const name of ['フロア', 'ダッシュボード']) {
+    const obj = specs.find((s) => s.name === name).object3d;
+    obj.updateMatrixWorld(true);
+    obj.traverse((o) => {
+      if (!o.isMesh) return;
+      const pos = o.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+        const uAtX = (bp.length / 2 - v.x) / bp.length;
+        const p = profileAt(bp, uAtX);
+        // コックピット開口の内側(u0..u1)は開口の局所幅(hole)が境界。
+        // 外側（ダッシュボード前端がカウル下の実体シェルへ入り込む領域）は開口が存在しない(hole=0)ため、
+        // 車体外殻の局所幅(zTop)を境界にする。hole基準のみだと、実体シェル内に収まっていても誤検出になる。
+        const limit = (uAtX >= u0 && uAtX <= u1 ? p.hole : p.zTop) + 0.01;
+        assert.ok(Math.abs(v.z) <= limit, `${name}: |z|=${Math.abs(v.z).toFixed(3)} > limit=${limit.toFixed(3)} (x=${v.x.toFixed(3)}, u=${uAtX.toFixed(3)})`);
+      }
+    });
+  }
 });

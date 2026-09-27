@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { cockpitRange, profileAt, uToX } from '../bodyLoft.js';
-import { mesh, spec, worldAssembly, seatLayout } from './util.js';
+import { mesh, spec, worldAssembly, seatLayout, gridSurface } from './util.js';
+import { lerp } from '../math.js';
 
 export function buildInterior(bp, m) {
   const seat = seatLayout(bp);
   const { u0, u1 } = cockpitRange(bp);
   const f = seat.floor;
-  const innerW = 2 * profileAt(bp, seat.u).hole * 0.95;
   const out = [];
 
   for (const [name, s] of [['シート右', 1], ['シート左', -1]]) {
@@ -21,10 +21,11 @@ export function buildInterior(bp, m) {
     ]), [0, 0.75, s * 0.3]));
   }
 
-  const pd = profileAt(bp, u0 + 0.01);
+  const uDash = u0 + 0.1 / bp.length;
+  const pd = profileAt(bp, uDash);
   const xDash = uToX(bp, u0) - 0.1;
   const yDash = pd.T - 0.12;
-  const dashW = Math.min(2 * (seat.z + 0.24), innerW);
+  const dashW = Math.min(2 * (seat.z + 0.24), 2 * pd.hole * 0.95);
   out.push(spec('ダッシュボード', 'interior', worldAssembly([
     mesh(new RoundedBoxGeometry(0.28, 0.13, dashW, 3, 0.04), m.interior, [xDash, yDash, 0]),
     mesh(new THREE.BoxGeometry(0.01, 0.012, dashW * 0.9), m.copper, [xDash - 0.141, yDash + 0.02, 0]),
@@ -51,9 +52,11 @@ export function buildInterior(bp, m) {
     mesh(new THREE.BoxGeometry(0.6, 0.006, 0.02), m.copper, [seat.x + 0.05, f + 0.143, 0]),
   ]), [0, 0.6, 0]));
 
-  const xa = uToX(bp, u0), xe = uToX(bp, u1);
   out.push(spec('フロア', 'interior', worldAssembly([
-    mesh(new THREE.BoxGeometry((xa - xe) * 0.92, 0.02, Math.min(2 * seat.z + 0.5, innerW)), m.interior, [(xa + xe) / 2, f + 0.01, 0]),
+    mesh(gridSurface((s, v) => {
+      const u = lerp(u0, u1, v);
+      return [uToX(bp, u), f + 0.01, s * profileAt(bp, u).hole * 0.95];
+    }, 4, 24), m.interior),
   ]), [0, 0.3, 0]));
 
   return out;
