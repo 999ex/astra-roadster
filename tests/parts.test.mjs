@@ -198,3 +198,28 @@ test('シャーシフレームはバッテリー・モーター・ドライブ�
     }
   }
 });
+
+// --- Fix round 2: シャーシフレームが内装フロアを突き抜けないこと。フロア・シートと干渉しないこと。
+
+test('シャーシフレームの各メッシュは内装フロアより下にある', () => {
+  const chassis = buildChassis(bp, mats);
+  const floor = seatLayout(bp).floor;
+  const frameBoxes = meshWorldBoxes(chassis.find((s) => s.name === 'シャーシフレーム').object3d);
+  for (const b of frameBoxes) {
+    assert.ok(b.max.y <= floor + 1e-3, `シャーシフレーム: max.y=${b.max.y.toFixed(4)} > floor=${floor.toFixed(4)}`);
+  }
+});
+
+test('シャーシフレームはフロア・シートと干渉しない', () => {
+  const chassis = buildChassis(bp, mats);
+  const interior = buildInterior(bp, mats);
+  const frameBoxes = meshWorldBoxes(chassis.find((s) => s.name === 'シャーシフレーム').object3d);
+  for (const name of ['フロア', 'シート左', 'シート右']) {
+    const otherBoxes = meshWorldBoxes(interior.find((s) => s.name === name).object3d);
+    for (const fb of frameBoxes) {
+      for (const ob of otherBoxes) {
+        assert.ok(boxesDisjoint(fb, ob, 1e-3), `シャーシフレーム と ${name} が干渉`);
+      }
+    }
+  }
+});

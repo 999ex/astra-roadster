@@ -28,18 +28,21 @@ export function buildChassis(bp, m) {
   const fx0 = xf + 0.45, fx1 = xr - 0.45, fLen = fx0 - fx1, fMid = (fx0 + fx1) / 2;
   const bx0 = xf - wf.radius - 0.15, bx1 = xr + wr.radius + 0.15;
 
-  // レール下面は、フレーム区間の車体下面の最高点より上、かつ車軸上のドライブシャフト／ジョイント球(R±0.04)より上にする
+  // フレームの高さは「下限＝フレーム区間の車体下面の最高点＋1cm、または車軸上のドライブシャフト／
+  // ジョイント球(R±0.04)より上」と「上限＝内装フロア－5mm（コックピット床を突き抜けない）」の帯に収める。
+  // 帯の中央にレール／クロスメンバーを配置し、薄型化した高さ(railH)で両端に均等なクリアランスを残す。
   const maxBcFrame = maxBcOverX(bp, fx1, fx0);
-  const railHalfH = 0.03;
-  const railBottomMin = Math.max(maxBcFrame + 0.01, wf.radius + 0.04);
-  const yFrame = railBottomMin + railHalfH + 0.005;
+  const railH = 0.03;
+  const bandLow = Math.max(maxBcFrame + 0.01, wf.radius + 0.04);
+  const bandHigh = seatLayout(bp).floor - 0.005;
+  const yFrame = (bandLow + bandHigh) / 2;
 
   const frame = [
-    mesh(new THREE.BoxGeometry(fLen, 0.06, 0.05), m.steel, [fMid, yFrame, railZ]),
-    mesh(new THREE.BoxGeometry(fLen, 0.06, 0.05), m.steel, [fMid, yFrame, -railZ]),
+    mesh(new THREE.BoxGeometry(fLen, railH, 0.05), m.steel, [fMid, yFrame, railZ]),
+    mesh(new THREE.BoxGeometry(fLen, railH, 0.05), m.steel, [fMid, yFrame, -railZ]),
   ];
   // クロスメンバー4本: 前端・バッテリー前端の少し前・バッテリー後端の少し後・後端（バッテリー区間とモーター区間の外側）
-  for (const cx of [fx0, bx0 + 0.04, bx1 - 0.04, fx1]) frame.push(mesh(new THREE.BoxGeometry(0.05, 0.05, 2 * railZ), m.steel, [cx, yFrame, 0]));
+  for (const cx of [fx0, bx0 + 0.04, bx1 - 0.04, fx1]) frame.push(mesh(new THREE.BoxGeometry(0.05, railH, 2 * railZ), m.steel, [cx, yFrame, 0]));
   out.push(spec('シャーシフレーム', 'chassis', worldAssembly(frame), [0, 0, 0]));
 
   // バッテリー: 前後輪の間のトレイと、3×2のモジュール。
