@@ -7,6 +7,7 @@ import { createMaterials } from './materials.js';
 import { createRegistry } from './registry.js';
 import { createExplodeController } from './explode.js';
 import { createDrive } from './drive.js';
+import { setupUI } from './ui.js';
 import { buildExterior } from './parts/exterior.js';
 import { buildWheels } from './parts/wheels.js';
 import { buildInterior } from './parts/interior.js';
@@ -32,6 +33,7 @@ const drive = createDrive({
   spinners: registry.parts.map((p) => p.object3d.userData.spin).filter(Boolean),
   lights: [{ material: mats.headlight, max: 2.5 }, { material: mats.taillight, max: 3 }],
 });
+setupUI({ stage, registry, explode, drive, views, applyTheme: (n) => applyTheme(stage, n) });
 
 const clock = new THREE.Clock();
 stage.renderer.setAnimationLoop(() => {
