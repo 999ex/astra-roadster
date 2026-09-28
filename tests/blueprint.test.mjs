@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BLUEPRINT as bp } from '../src/blueprint.js';
-import { mergeLargeComponents, fillGaps } from '../tools/extract-blueprint.mjs';
+import { mergeLargeComponents, fillGaps, curvatureSignFlips } from '../tools/extract-blueprint.mjs';
 
 const inMid = (i) => i / (bp.samples - 1) > 0.06 && i / (bp.samples - 1) < 0.94;
 
@@ -79,4 +79,12 @@ test('fillGaps は先頭・末尾の非ゼロ要素の間にある0を線形補�
   assert.deepEqual(fillGaps([0, 2, 0, 0, 8, 0]), [0, 2, 4, 6, 8, 0]);
   assert.deepEqual(fillGaps([0, 0, 5, 0, 5, 0, 0]), [0, 0, 5, 5, 5, 0, 0]);
   assert.deepEqual(fillGaps([0, 0, 0]), [0, 0, 0]);
+});
+
+
+test('上端(top)と半幅(halfWidth)は中間ステーション(i=8..112)で波打たない（曲率の符号反転 ≤ 6）', () => {
+  for (const key of ['top', 'halfWidth']) {
+    const flips = curvatureSignFlips(bp[key]);
+    assert.ok(flips <= 6, `${key}: curvature sign flips=${flips} (> 6) — ボディ表面が波打つ`);
+  }
 });

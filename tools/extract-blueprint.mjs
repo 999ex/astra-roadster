@@ -96,6 +96,54 @@ export function smooth(arr, win = 2) {
   });
 }
 
+// 両端で奇関数反射（端点まわりの点対称）をして移動平均をとる。端点の値と端の傾きを保つので、
+// 窓が縮む通常の smooth と違い、ノーズ/テール端の形を引きずらない。
+export function smoothKeepEnds(arr, win) {
+  const n = arr.length;
+  if (n < 2) return [...arr];
+  const at = (k) => {
+    if (k < 0) return 2 * arr[0] - arr[Math.min(n - 1, -k)];
+    if (k >= n) return 2 * arr[n - 1] - arr[Math.max(0, 2 * (n - 1) - k)];
+    return arr[k];
+  };
+  return arr.map((_, i) => {
+    let t = 0;
+    for (let k = i - win; k <= i + win; k++) t += at(k);
+    return t / (2 * win + 1);
+  });
+}
+
+// 画素量子化の波打ちを消す強い平滑化: 従来の軽い平滑化(win=2)のあと、端点保持の移動平均(win=4)を2回。
+export const smoothStrong = (arr) => smoothKeepEnds(smoothKeepEnds(smooth(arr), 4), 4);
+
+// mask[i] が真の連続区間ごとに、区間内だけで smoothStrong をかける（区間の端点の値は変わらない）。
+// mask が偽の要素は軽い平滑化(win=2)の値を返す（ホイールアーチを丸めないため）。
+export function smoothOutside(arr, mask) {
+  const out = smooth(arr);
+  let i = 0;
+  while (i < arr.length) {
+    if (!mask[i]) { i++; continue; }
+    let j = i; while (j + 1 < arr.length && mask[j + 1]) j++;
+    const seg = smoothStrong(arr.slice(i, j + 1));
+    for (let k = i; k <= j; k++) out[k] = seg[k - i];
+    i = j + 1;
+  }
+  return out;
+}
+
+// 2階差分（曲率）の符号反転回数。画素量子化による細かな波打ちがあると多数反転する。
+// |2階差分| < tol は直線とみなす（blueprint は小数4桁に丸めて保存されるため、その丸め誤差 ~2e-4 を無視する）。
+export function curvatureSignFlips(a, { i0 = 8, i1 = a.length - 9, tol = 3e-4 } = {}) {
+  let flips = 0, prev = 0;
+  for (let i = i0; i <= i1; i++) {
+    const d = a[i + 1] - 2 * a[i] + a[i - 1];
+    const sgn = Math.abs(d) < tol ? 0 : Math.sign(d);
+    if (sgn && prev && sgn !== prev) flips++;
+    if (sgn) prev = sgn;
+  }
+  return flips;
+}
+
 // 配列の「先頭と末尾の非ゼロ要素の間」にある内側の0を、両側の最近傍の非ゼロ値で線形補間して埋める
 // （先頭より前・末尾より後ろの0はそのまま残す）
 export function fillGaps(arr) {
@@ -216,8 +264,12 @@ export function extract() {
   });
   const groundRow = wheelsPx.reduce((a, w) => a + w.archTop + 0.06 * w.D + w.D, 0) / 2;
 
-  const top = smooth(side.top.map((r) => (groundRow - r) * s));
-  const bottomOuter = smooth(side.bottom.map((r) => (groundRow - r) * s));
+  // 画素量子化による細かな波打ち（曲率の符号反転）がボディ表面の凸凹になるため、上端は強く平滑化する。
+  const top = smoothStrong(side.top.map((r) => (groundRow - r) * s));
+  // 下端はホイールアーチ区間（±2ステーションの余裕を含む）を従来どおり軽く平滑化し、
+  // それ以外の区間だけを区間内で強く平滑化する（アーチの形を丸めない）。
+  const archZone = side.bottom.map((_, i) => arches.some(({ i0, i1 }) => i >= i0 - 2 && i <= i1 + 2));
+  const bottomOuter = smoothOutside(side.bottom.map((r) => (groundRow - r) * s), archZone.map((a) => !a));
   const bottomCenter = [...bottomOuter];
   for (const { i0, i1 } of arches) {
     const a = bottomOuter[Math.max(0, i0 - 2)], b = bottomOuter[Math.min(N - 1, i1 + 2)];
@@ -231,7 +283,7 @@ export function extract() {
 
   const topView = topProfile(carMask('Astra_Roadster上.png', { merge: true }));
   const ts = LENGTH / (topView.bbox.y1 - topView.bbox.y0);
-  const halfWidth = smooth(topView.half.map((v) => v * ts));
+  const halfWidth = smoothStrong(topView.half.map((v) => v * ts));
   const holeHalfWidth = smooth(topView.hole.map((v) => v * ts), 1).map((v, i) => (topView.hole[i] > 0 ? v : 0));
 
   const front = frontTemplate(carMask('Astra_Roadster正面.png'));
