@@ -5,6 +5,16 @@ export function findPartName(obj) {
   return null;
 }
 
+// タップ判定: 同じ pointerId で、押下点からの移動が threshold px 未満なら「タップ」
+export function isTap(down, up, threshold = 8) {
+  if (!down || !up || down.id !== up.id) return false;
+  return Math.hypot(up.x - down.x, up.y - down.y) < threshold;
+}
+
+// Pointer Events 仕様ではタッチ/ペンは pointerup の直後に pointerout/pointerleave が発火する。
+// そこで消すとタップで出した部品名が即座に消えるため、マウスのときだけ消す。
+export const shouldClearOnLeave = (pointerType) => pointerType === 'mouse';
+
 export function setupUI({ stage, registry, explode, drive, views, applyTheme }) {
   const $ = (id) => document.getElementById(id);
   const btnDrive = $('btn-drive');
@@ -72,25 +82,32 @@ export function setupUI({ stage, registry, explode, drive, views, applyTheme }) 
     tip.classList.add('show');
   }
 
+  let down = null;
+  let tipTimer = 0;
+  const clearAll = () => { setHighlight(null); showTip(null); };
+
   canvas.addEventListener('pointermove', (e) => {
     if (e.pointerType !== 'mouse') return;
+    clearTimeout(tipTimer);
+    if (e.buttons) return; // ドラッグ（視点回転）中はレイキャストしない
     const name = pick(e.clientX, e.clientY);
     setHighlight(name);
     showTip(name, e.clientX, e.clientY);
     canvas.style.cursor = name ? 'pointer' : '';
   });
-  canvas.addEventListener('pointerleave', () => { setHighlight(null); showTip(null); });
+  canvas.addEventListener('pointerleave', (e) => { if (shouldClearOnLeave(e.pointerType)) clearAll(); });
 
-  let down = null;
-  let tipTimer = 0;
-  canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; });
+  canvas.addEventListener('pointerdown', (e) => { down = { id: e.pointerId, x: e.clientX, y: e.clientY }; });
+  canvas.addEventListener('pointercancel', (e) => { if (down && down.id === e.pointerId) down = null; });
   canvas.addEventListener('pointerup', (e) => {
-    if (e.pointerType === 'mouse' || !down) return;
-    if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) return;
+    const start = down;
+    if (start && start.id === e.pointerId) down = null;
+    if (e.pointerType === 'mouse') return;
+    if (!isTap(start, { id: e.pointerId, x: e.clientX, y: e.clientY })) return;
     const name = pick(e.clientX, e.clientY);
     setHighlight(name);
     showTip(name, e.clientX, e.clientY);
     clearTimeout(tipTimer);
-    tipTimer = setTimeout(() => { setHighlight(null); showTip(null); }, 2000);
+    tipTimer = setTimeout(clearAll, 2000);
   });
 }
