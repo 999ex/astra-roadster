@@ -53,8 +53,10 @@ export function buildExterior(bp, m) {
 
   for (const [name, s] of [['ヘッドライト右', 1], ['ヘッドライト左', -1]]) {
     const [x, y, z] = pointOnSide(bp, 0.07, 0.72, s);
+    // ブレードの長さ 0.18: 後端をホイールハウスの前（前輪中心 + R + 0.02 より前方）に収め、前輪タイヤに刺さらないようにする
+    const bladeLen = 0.18;
     const shape = new THREE.Shape();
-    shape.moveTo(0, 0); shape.lineTo(-0.42, 0.035); shape.lineTo(-0.4, 0.05); shape.lineTo(0.02, 0.03); shape.closePath();
+    shape.moveTo(0, 0); shape.lineTo(-bladeLen, 0.035); shape.lineTo(-bladeLen + 0.02, 0.05); shape.lineTo(0.02, 0.03); shape.closePath();
     const g = new THREE.ExtrudeGeometry(shape, { depth: 0.02, bevelEnabled: false });
     g.translate(0, 0, -0.01);
     out.push(spec(name, 'exterior', worldAssembly([mesh(g, m.headlight, [x + 0.02, y, z + s * 0.005], [0, s * 0.35, 0])]), [0.9, 0.95, s * 0.3]));

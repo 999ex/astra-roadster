@@ -8,8 +8,8 @@ import { buildWheels } from '../src/parts/wheels.js';
 import { buildInterior } from '../src/parts/interior.js';
 import { buildChassis } from '../src/parts/chassis.js';
 import { createRegistry } from '../src/registry.js';
-import { cockpitRange, profileAt } from '../src/bodyLoft.js';
-import { seatLayout } from '../src/parts/util.js';
+import { cockpitRange, profileAt, uToX } from '../src/bodyLoft.js';
+import { seatLayout, maxBcOverX } from '../src/parts/util.js';
 
 const mats = createMaterials();
 const EXTERIOR = ['ボディシェル', 'ボンネット', 'トランクリッド', 'シザードア左', 'シザードア右', 'フロントバンパー', 'リアディフューザー', 'フロントガラス', 'ドアミラー左', 'ドアミラー右', 'ヘッドライト左', 'ヘッドライト右', 'テールライトバー', 'フロントグリル', 'サイドスカート左', 'サイドスカート右', 'ロールフープ'];
@@ -121,16 +121,6 @@ test('全体で61点、名前は重複せず、グループ別は 17/16/7/21', (
 // --- Fix round 1: シャーシ/バッテリーが車体下面より上、内装フロアより下にあること。
 // ドライブシャフトの外側ジョイントがタイヤ内側面より内側にあること。フレームが他部品と干渉しないこと。
 
-function maxBcOverX(bp0, xLo, xHi, steps = 40) {
-  let m = -Infinity;
-  for (let i = 0; i <= steps; i++) {
-    const x = xLo + ((xHi - xLo) * i) / steps;
-    const u = Math.min(1, Math.max(0, (bp0.length / 2 - x) / bp0.length));
-    const p = profileAt(bp0, u);
-    if (p.Bc > m) m = p.Bc;
-  }
-  return m;
-}
 
 function meshWorldBoxes(object3d) {
   object3d.updateMatrixWorld(true);
@@ -223,4 +213,33 @@ test('シャーシフレームはフロア・シートと干渉しない', () =>
       }
     }
   }
+});
+
+// --- Final review: ヘッドライトの後端がホイールハウス内で前輪タイヤに刺さらないこと。
+
+test('ヘッドライトの頂点は前輪タイヤの円柱の内側にない', () => {
+  const exterior = buildExterior(bp, mats);
+  const wheels = buildWheels(bp, mats);
+  const [wf] = bp.wheels;
+  const xf = uToX(bp, wf.u), R = wf.radius;
+  const v = new THREE.Vector3();
+  for (const [light, tireName] of [['ヘッドライト右', '右前タイヤ'], ['ヘッドライト左', '左前タイヤ']]) {
+    const tBox = new THREE.Box3().setFromObject(wheels.find((s) => s.name === tireName).object3d);
+    const obj = exterior.find((s) => s.name === light).object3d;
+    obj.updateMatrixWorld(true);
+    obj.traverse((o) => {
+      if (!o.isMesh) return;
+      const pos = o.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+        const inside = Math.hypot(v.x - xf, v.y - R) < R && v.z > tBox.min.z && v.z < tBox.max.z;
+        assert.ok(!inside, `${light} の頂点 (${v.x.toFixed(3)}, ${v.y.toFixed(3)}, ${v.z.toFixed(3)}) が ${tireName} の内側`);
+      }
+    });
+  }
+});
+
+test('blueprint が壊れていてフレーム帯/バッテリー予算が成り立たないときは、黙って壊れた形状を作らず説明付きで例外を投げる', () => {
+  // 内装フロアを車体下面近くまで下げると、フレーム帯（下限＞上限）が反転する
+  assert.throws(() => buildChassis({ ...bp, cockpitFloor: 0.3 }, mats), /シャーシフレームの高さ帯が反転/);
 });

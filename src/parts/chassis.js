@@ -1,28 +1,15 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { profileAt, uToX } from '../bodyLoft.js';
-import { mesh, spec, worldAssembly, tubeThrough, seatLayout } from './util.js';
+import { mesh, spec, worldAssembly, tubeThrough, seatLayout, alongZ, maxBcOverX } from './util.js';
 import { TIRE_WIDTH } from './wheels.js';
-
-const alongZ = (g) => { g.rotateX(Math.PI / 2); return g; };
-
-// x区間 [xLo, xHi] 上の車体下面(bottomCenter)の最大値を求める（フレーム/バッテリーの床上クリアランス判定用）
-function maxBcOverX(bp, xLo, xHi, steps = 40) {
-  let m = -Infinity;
-  for (let i = 0; i <= steps; i++) {
-    const x = xLo + ((xHi - xLo) * i) / steps;
-    const u = Math.min(1, Math.max(0, (bp.length / 2 - x) / bp.length));
-    const p = profileAt(bp, u);
-    if (p.Bc > m) m = p.Bc;
-  }
-  return m;
-}
 
 export function buildChassis(bp, m) {
   const out = [];
   const [wf, wr] = bp.wheels;
   const xf = uToX(bp, wf.u), xr = uToX(bp, wr.u);
   const railZ = 0.8 * profileAt(bp, 0.5).zIn;
+  const floor = seatLayout(bp).floor;
 
   // フレーム: 縦2本＋横4本（クロスメンバーはバッテリー区間とモーター区間(車軸±0.15)を避ける）。
   // 後端は車軸−0.30: リアモーター(車軸±0.15)の後ろで、リアディフューザー(後端から約0.34)の手前に収める。
@@ -35,7 +22,10 @@ export function buildChassis(bp, m) {
   const maxBcFrame = maxBcOverX(bp, fx1, fx0);
   const railH = 0.03;
   const bandLow = Math.max(maxBcFrame + 0.01, wf.radius + 0.04);
-  const bandHigh = seatLayout(bp).floor - 0.005;
+  const bandHigh = floor - 0.005;
+  if (bandLow + railH > bandHigh) {
+    throw new Error(`シャーシフレームの高さ帯が反転（またはレール高より狭い）: 下限 ${bandLow.toFixed(4)} + レール高 ${railH} > 上限 ${bandHigh.toFixed(4)}（車体下面の最高点 ${maxBcFrame.toFixed(4)}、内装フロア ${floor.toFixed(4)}）。blueprint を確認してください。`);
+  }
   const yFrame = (bandLow + bandHigh) / 2;
 
   const frame = [
@@ -51,8 +41,11 @@ export function buildChassis(bp, m) {
   const bLen = bx0 - bx1, bMid = (bx0 + bx1) / 2, bW = 2 * railZ - 0.08;
   const maxBcBattery = maxBcOverX(bp, bx1, bx0);
   const battLow = maxBcBattery + 0.005;
-  const battHigh = seatLayout(bp).floor - 0.005;
+  const battHigh = floor - 0.005;
   const battBudget = battHigh - battLow;
+  if (battBudget <= 0) {
+    throw new Error(`バッテリーの高さ予算がありません: ${battBudget.toFixed(4)} m（下限 ${battLow.toFixed(4)} ≥ 上限 ${battHigh.toFixed(4)}）。blueprint を確認してください。`);
+  }
   const trayH = 0.01, connH = 0.008;
   const moduleH = Math.max(0.02, battBudget - trayH - connH - 0.004);
   const caseWallH = trayH + moduleH;

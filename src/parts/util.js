@@ -1,6 +1,21 @@
 import * as THREE from 'three';
 import { cockpitRange, profileAt, uToX } from '../bodyLoft.js';
 
+// 既定で Y 軸向きの円柱などを Z 軸向き（車幅方向）に倒す
+export const alongZ = (g) => { g.rotateX(Math.PI / 2); return g; };
+
+// x区間 [xLo, xHi] 上の車体下面(bottomCenter)の最大値（フレーム/バッテリーの床上クリアランス判定用）
+export function maxBcOverX(bp, xLo, xHi, steps = 40) {
+  let m = -Infinity;
+  for (let i = 0; i <= steps; i++) {
+    const x = xLo + ((xHi - xLo) * i) / steps;
+    const u = Math.min(1, Math.max(0, (bp.length / 2 - x) / bp.length));
+    const p = profileAt(bp, u);
+    if (p.Bc > m) m = p.Bc;
+  }
+  return m;
+}
+
 export function loftToGeometry({ positions, indices }) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(positions, 3));

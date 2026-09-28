@@ -1,11 +1,9 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { profileAt, uToX } from '../bodyLoft.js';
-import { mesh, spec } from './util.js';
+import { mesh, spec, alongZ } from './util.js';
 
 export const TIRE_WIDTH = 0.24;
-
-const alongZ = (g) => { g.rotateX(Math.PI / 2); return g; };
 
 function spinning(position, children) {
   const outer = new THREE.Group();
