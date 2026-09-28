@@ -185,12 +185,13 @@ test('ドライブシャフトの外側ジョイントはタイヤ内側面よ�
   }
 });
 
-test('シャーシフレームはバッテリー・モーター・ドライブシャフトと干渉しない', () => {
+test('シャーシフレームはバッテリー・モーター・ドライブシャフト・ステアリングラック・リアディフューザーと干渉しない', () => {
   const chassis = buildChassis(bp, mats);
+  const all = [...chassis, ...buildExterior(bp, mats)];
   const frameBoxes = meshWorldBoxes(chassis.find((s) => s.name === 'シャーシフレーム').object3d);
-  const others = [...BATTERY_NAMES, 'フロントモーター', 'リアモーター', ...CORNERS.map((c) => `ドライブシャフト${c}`)];
+  const others = [...BATTERY_NAMES, 'フロントモーター', 'リアモーター', ...CORNERS.map((c) => `ドライブシャフト${c}`), 'ステアリングラック', 'リアディフューザー'];
   for (const name of others) {
-    const otherBoxes = meshWorldBoxes(chassis.find((s) => s.name === name).object3d);
+    const otherBoxes = meshWorldBoxes(all.find((s) => s.name === name).object3d);
     for (const fb of frameBoxes) {
       for (const ob of otherBoxes) {
         assert.ok(boxesDisjoint(fb, ob, 1e-3), `シャーシフレーム と ${name} が干渉`);

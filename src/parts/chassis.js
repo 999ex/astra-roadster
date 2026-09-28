@@ -24,8 +24,9 @@ export function buildChassis(bp, m) {
   const xf = uToX(bp, wf.u), xr = uToX(bp, wr.u);
   const railZ = 0.8 * profileAt(bp, 0.5).zIn;
 
-  // フレーム: 縦2本＋横4本（クロスメンバーはバッテリー区間とモーター区間(車軸±0.15)を避ける）
-  const fx0 = xf + 0.45, fx1 = xr - 0.45, fLen = fx0 - fx1, fMid = (fx0 + fx1) / 2;
+  // フレーム: 縦2本＋横4本（クロスメンバーはバッテリー区間とモーター区間(車軸±0.15)を避ける）。
+  // 後端は車軸−0.30: リアモーター(車軸±0.15)の後ろで、リアディフューザー(後端から約0.34)の手前に収める。
+  const fx0 = xf + 0.45, fx1 = xr - 0.30, fLen = fx0 - fx1, fMid = (fx0 + fx1) / 2;
   const bx0 = xf - wf.radius - 0.15, bx1 = xr + wr.radius + 0.15;
 
   // フレームの高さは「下限＝フレーム区間の車体下面の最高点＋1cm、または車軸上のドライブシャフト／
@@ -114,9 +115,13 @@ export function buildChassis(bp, m) {
     }
   }
 
+  // ステアリングラック: フレームのレールと交差しないよう、ギアハウジング(半径0.045)の上端を
+  // レール下面より3mm下に抑える（レールの外側まで伸びる横棒のまま、レールの下をくぐらせる）。
+  const rackHousingR = 0.045;
+  const yRack = Math.min(wf.radius + 0.02, yFrame - railH / 2 - 0.003 - rackHousingR);
   out.push(spec('ステアリングラック', 'chassis', worldAssembly([
-    mesh(alongZ(new THREE.CylinderGeometry(0.03, 0.03, 2 * railZ + 0.1, 16)), m.steel, [xf + 0.2, wf.radius + 0.02, 0]),
-    mesh(alongZ(new THREE.CylinderGeometry(0.045, 0.045, 0.18, 16)), m.aluminum, [xf + 0.2, wf.radius + 0.02, -0.15]),
+    mesh(alongZ(new THREE.CylinderGeometry(0.03, 0.03, 2 * railZ + 0.1, 16)), m.steel, [xf + 0.2, yRack, 0]),
+    mesh(alongZ(new THREE.CylinderGeometry(rackHousingR, rackHousingR, 0.18, 16)), m.aluminum, [xf + 0.2, yRack, -0.15]),
   ]), [0.55, 0.1, 0]));
 
   const xRad = uToX(bp, 0.06);
