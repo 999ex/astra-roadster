@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BLUEPRINT as bp } from '../src/blueprint.js';
-import { mergeLargeComponents, fillGaps, curvatureSignFlips } from '../tools/extract-blueprint.mjs';
+import { mergeLargeComponents, largestComponent, fillGaps, curvatureSignFlips } from '../tools/extract-blueprint.mjs';
 
 const inMid = (i) => i / (bp.samples - 1) > 0.06 && i / (bp.samples - 1) < 0.94;
 
@@ -87,4 +87,15 @@ test('上端(top)と半幅(halfWidth)は中間ステーション(i=8..112)で波
     const flips = curvatureSignFlips(bp[key]);
     assert.ok(flips <= 6, `${key}: curvature sign flips=${flips} (> 6) — ボディ表面が波打つ`);
   }
+});
+
+test('largestComponent は空マスクに対して全ゼロのマスクを返し、非空なら最大成分だけを残す', () => {
+  const w = 6, h = 3;
+  const empty = largestComponent({ w, h, mask: new Uint8Array(w * h) });
+  assert.equal(empty.mask.reduce((a, v) => a + v, 0), 0, '空入力で全画素が1になってはいけない');
+  const mask = new Uint8Array(w * h);
+  mask[0] = 1; // 1px の成分
+  for (const i of [3, 4, 5, 9, 10, 11]) mask[i] = 1; // 6px の成分
+  const out = largestComponent({ w, h, mask });
+  assert.deepEqual([...out.mask], [0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0]);
 });

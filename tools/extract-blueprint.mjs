@@ -63,6 +63,7 @@ export function largestComponent({ w, h, mask }) {
   let best = 0, bestSize = 0;
   for (let id = 1; id < sizes.length; id++) if (sizes[id] > bestSize) { bestSize = sizes[id]; best = id; }
   const out = new Uint8Array(w * h);
+  if (best === 0) return { w, h, mask: out }; // 成分なし: 全ゼロ（label 0 = 背景を「最大成分」と誤認しない）
   for (let i = 0; i < w * h; i++) out[i] = label[i] === best ? 1 : 0;
   return { w, h, mask: out };
 }
