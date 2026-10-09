@@ -1,0 +1,1063 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Astra Roadster</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500&family=Shippori+Mincho:wght@700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0b0f17;--fg:#e9e3d3;--accent:#c9a45c;--muted:#8b8577;--btn-bg:rgba(20,24,33,.72);--btn-border:rgba(201,164,92,.35);--btn-active:#c9a45c;--btn-active-fg:#15120b}
+body[data-theme="studio"]{--bg:#efe6dc;--fg:#2a211b;--accent:#9a3b2c;--muted:#7a6d62;--btn-bg:rgba(255,250,244,.78);--btn-border:rgba(154,59,44,.3);--btn-active:#9a3b2c;--btn-active-fg:#fff8f1}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);font-family:'Noto Sans JP',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+#stage{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.hud-title{position:fixed;left:24px;top:20px;pointer-events:none}
+.eyebrow{font-size:11px;letter-spacing:.28em;color:var(--accent)}
+.hud-title h1{font-family:'Shippori Mincho',serif;font-size:clamp(28px,5vw,44px);margin:4px 0 6px;letter-spacing:.06em}
+.spec{margin:0;font-size:12px;color:var(--muted)}
+.spec b{color:var(--fg);font-weight:500}
+.theme-switch{position:fixed;right:20px;top:20px;display:flex;border:1px solid var(--btn-border);border-radius:999px;overflow:hidden;background:var(--btn-bg);backdrop-filter:blur(8px)}
+.theme-switch button{font:inherit;font-size:12px;color:var(--muted);background:none;border:0;padding:7px 14px;cursor:pointer}
+.theme-switch button.is-active{background:var(--btn-active);color:var(--btn-active-fg)}
+.controls{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);display:flex;gap:10px;flex-wrap:wrap;justify-content:center;width:calc(100% - 32px);max-width:900px}
+.btn{font:inherit;font-size:14px;color:var(--fg);background:var(--btn-bg);border:1px solid var(--btn-border);border-radius:8px;padding:10px 18px;cursor:pointer;backdrop-filter:blur(8px);transition:background .2s,border-color .2s,color .2s}
+.btn:hover{border-color:var(--accent)}
+.btn.is-active{background:var(--btn-active);color:var(--btn-active-fg);border-color:var(--btn-active)}
+.view-group{display:flex;border:1px solid var(--btn-border);border-radius:8px;overflow:hidden;backdrop-filter:blur(8px)}
+.view-group .btn{border:0;border-radius:0;backdrop-filter:none}
+.view-group .btn+.btn{border-left:1px solid var(--btn-border)}
+.hint{position:fixed;bottom:14px;left:0;right:0;text-align:center;font-size:11px;color:var(--muted);pointer-events:none;padding:0 16px}
+.tooltip{position:fixed;left:0;top:0;pointer-events:none;padding:6px 10px;font-size:13px;border-radius:6px;background:var(--btn-bg);border:1px solid var(--accent);color:var(--fg);opacity:0;transition:opacity .15s;white-space:nowrap;backdrop-filter:blur(8px)}
+.tooltip.show{opacity:1}
+@media (max-width:600px){
+  .hud-title{left:16px;top:14px}
+  .theme-switch{right:16px;top:14px}
+  .controls{bottom:56px;gap:6px}
+  .btn{padding:8px 12px;font-size:13px}
+}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
+</script>
+</head>
+<body data-theme="gallery">
+<canvas id="stage"></canvas>
+<div class="hud-title">
+  <div class="eyebrow">ROADSTER · No.01</div>
+  <h1>Astra Roadster</h1>
+  <p class="spec">部品 <b id="part-count">61</b> 点 ／ ボディ・シャーシ・EVドライブ ／ シザードア</p>
+</div>
+<div class="theme-switch" role="group" aria-label="テーマ">
+  <button type="button" data-theme-btn="gallery" class="is-active">展示室</button>
+  <button type="button" data-theme-btn="studio">スタジオ</button>
+</div>
+<div class="controls">
+  <button type="button" class="btn" id="btn-drive">始動</button>
+  <button type="button" class="btn" id="btn-explode">パーツ分解</button>
+  <div class="view-group" role="group" aria-label="視点">
+    <button type="button" class="btn" data-view="top">上</button>
+    <button type="button" class="btn" data-view="side">横</button>
+    <button type="button" class="btn" data-view="front">正面</button>
+  </div>
+  <button type="button" class="btn" id="btn-reset">視点リセット</button>
+</div>
+<div class="hint">ドラッグで回転 ・ ホイール／ピンチで拡大縮小 ・ 部品にカーソルを重ねると名称を表示</div>
+<div class="tooltip" id="tooltip"></div>
+<script type="module">
+// src/main.js
+import * as THREE10 from "three";
+
+// src/blueprint.js
+var BLUEPRINT = { "length": 4, "width": 1.9555, "samples": 121, "top": [0.6586, 0.6778, 0.6971, 0.7167, 0.7365, 0.7562, 0.7759, 0.7954, 0.8148, 0.834, 0.8525, 0.8704, 0.8872, 0.903, 0.9178, 0.9315, 0.944, 0.9555, 0.9657, 0.9749, 0.9829, 0.99, 0.9962, 1.0014, 1.0057, 1.0093, 1.0121, 1.0143, 1.0158, 1.0167, 1.0169, 1.0164, 1.015, 1.0127, 1.0095, 1.0054, 1.0005, 0.9947, 0.9884, 0.9816, 0.9748, 0.968, 0.9615, 0.9555, 0.9499, 0.9448, 0.9405, 0.9371, 0.9344, 0.9326, 0.9317, 0.9316, 0.9322, 0.9335, 0.9353, 0.9373, 0.9393, 0.9411, 0.9425, 0.9435, 0.9441, 0.9444, 0.9446, 0.9446, 0.9446, 0.9448, 0.9452, 0.9459, 0.9468, 0.948, 0.9493, 0.9509, 0.9526, 0.955, 0.9583, 0.963, 0.9694, 0.9778, 0.9883, 1.0007, 1.0149, 1.0308, 1.0475, 1.0642, 1.08, 1.094, 1.1055, 1.1145, 1.1208, 1.1247, 1.126, 1.1253, 1.1229, 1.1194, 1.115, 1.1102, 1.1052, 1.0998, 1.0941, 1.0881, 1.0819, 1.0755, 1.0688, 1.0619, 1.0549, 1.0477, 1.0403, 1.0327, 1.0251, 1.0173, 1.0091, 1.0004, 0.9912, 0.9815, 0.9711, 0.9598, 0.9475, 0.9344, 0.9204, 0.9061, 0.8917], "bottomOuter": [0.4114, 0.3896, 0.3685, 0.3485, 0.3311, 0.3165, 0.3046, 0.2956, 0.2887, 0.2837, 0.2802, 0.2779, 0.2765, 0.3338, 0.4052, 0.4861, 0.5744, 0.6684, 0.7064, 0.7358, 0.7585, 0.776, 0.7896, 0.7998, 0.8066, 0.81, 0.81, 0.806, 0.7986, 0.7879, 0.7732, 0.7539, 0.7301, 0.699, 0.6554, 0.5597, 0.4708, 0.3904, 0.3231, 0.2831, 0.2895, 0.2959, 0.3021, 0.3079, 0.3131, 0.3179, 0.3221, 0.3261, 0.3297, 0.3332, 0.3364, 0.3395, 0.3425, 0.3455, 0.3485, 0.3516, 0.3546, 0.3576, 0.3607, 0.3639, 0.3671, 0.3705, 0.3739, 0.3771, 0.3801, 0.3826, 0.3843, 0.385, 0.3844, 0.3825, 0.3791, 0.3744, 0.3688, 0.3627, 0.3564, 0.3506, 0.3458, 0.3424, 0.3406, 0.3407, 0.3424, 0.3453, 0.3492, 0.3541, 0.3594, 0.365, 0.3708, 0.4063, 0.4533, 0.511, 0.5756, 0.6463, 0.6922, 0.7256, 0.7511, 0.7715, 0.7873, 0.7992, 0.8077, 0.8128, 0.8145, 0.8128, 0.8071, 0.7981, 0.7851, 0.7675, 0.7449, 0.7166, 0.6775, 0.5994, 0.528, 0.4657, 0.4148, 0.3972, 0.4243, 0.452, 0.4808, 0.5107, 0.5413, 0.572, 0.6029], "bottomCenter": [0.4114, 0.3896, 0.3685, 0.3485, 0.3311, 0.3165, 0.3046, 0.2956, 0.2887, 0.2837, 0.2802, 0.2779, 0.2765, 0.3338, 0.3338, 0.3334, 0.3329, 0.3324, 0.332, 0.3315, 0.331, 0.3305, 0.3301, 0.3296, 0.3291, 0.3287, 0.3282, 0.3277, 0.3273, 0.3268, 0.3263, 0.3259, 0.3254, 0.3249, 0.3245, 0.324, 0.3235, 0.3231, 0.3231, 0.2831, 0.2895, 0.2959, 0.3021, 0.3079, 0.3131, 0.3179, 0.3221, 0.3261, 0.3297, 0.3332, 0.3364, 0.3395, 0.3425, 0.3455, 0.3485, 0.3516, 0.3546, 0.3576, 0.3607, 0.3639, 0.3671, 0.3705, 0.3739, 0.3771, 0.3801, 0.3826, 0.3843, 0.385, 0.3844, 0.3825, 0.3791, 0.3744, 0.3688, 0.3627, 0.3564, 0.3506, 0.3458, 0.3424, 0.3406, 0.3407, 0.3424, 0.3453, 0.3492, 0.3541, 0.3594, 0.365, 0.3708, 0.4063, 0.4063, 0.4067, 0.407, 0.4074, 0.4078, 0.4081, 0.4085, 0.4089, 0.4092, 0.4096, 0.41, 0.4104, 0.4107, 0.4111, 0.4115, 0.4118, 0.4122, 0.4126, 0.4129, 0.4133, 0.4137, 0.414, 0.4144, 0.4148, 0.4148, 0.3972, 0.4243, 0.452, 0.4808, 0.5107, 0.5413, 0.572, 0.6029], "halfWidth": [0.2769, 0.3423, 0.4071, 0.471, 0.5319, 0.589, 0.6415, 0.6892, 0.7325, 0.771, 0.8046, 0.8332, 0.8568, 0.8764, 0.8923, 0.9051, 0.9153, 0.9232, 0.9292, 0.9337, 0.9369, 0.9391, 0.9406, 0.9415, 0.9419, 0.9419, 0.9414, 0.9407, 0.9396, 0.9382, 0.9366, 0.9348, 0.9328, 0.9307, 0.9285, 0.9263, 0.9242, 0.9219, 0.9194, 0.9165, 0.9132, 0.9097, 0.9061, 0.9024, 0.8987, 0.8952, 0.892, 0.8897, 0.8883, 0.8879, 0.8885, 0.8897, 0.8913, 0.893, 0.8949, 0.8969, 0.8987, 0.9003, 0.9016, 0.9027, 0.9036, 0.9045, 0.9055, 0.9066, 0.9076, 0.9086, 0.9096, 0.9106, 0.9117, 0.913, 0.9146, 0.9166, 0.9191, 0.9222, 0.9258, 0.93, 0.9347, 0.9397, 0.9449, 0.9501, 0.9551, 0.9597, 0.9639, 0.9675, 0.9705, 0.973, 0.9748, 0.9762, 0.9771, 0.9776, 0.9778, 0.9776, 0.9772, 0.9765, 0.9755, 0.9743, 0.9728, 0.971, 0.9689, 0.9665, 0.9638, 0.9605, 0.9567, 0.952, 0.9463, 0.9393, 0.9306, 0.9198, 0.9066, 0.8905, 0.8699, 0.8446, 0.8141, 0.7782, 0.737, 0.6893, 0.6354, 0.5758, 0.5111, 0.4447, 0.377], "holeHalfWidth": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.2597, 0.4335, 0.515, 0.57, 0.6112, 0.6441, 0.6706, 0.6922, 0.7015, 0.7054, 0.704, 0.7187, 0.73, 0.7408, 0.7378, 0.7364, 0.7359, 0.7369, 0.7374, 0.7383, 0.7388, 0.7393, 0.7393, 0.7393, 0.7393, 0.7393, 0.7383, 0.7374, 0.7364, 0.7354, 0.7344, 0.7324, 0.7305, 0.7285, 0.7266, 0.7236, 0.7187, 0.7128, 0.7059, 0.6981, 0.6883, 0.6775, 0.6657, 0.6529, 0.6382, 0.6205, 0.5999, 0.5739, 0.5395, 0.4855, 0.3044, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "template": [0.4194, 0.5909, 0.9057, 0.9518, 0.9633, 0.9683, 0.9718, 0.9753, 0.9789, 0.9818, 0.9841, 0.9859, 0.9883, 0.9906, 0.9924, 0.9935, 0.9947, 0.9965, 0.9979, 0.9991, 0.9997, 1, 0.9994, 0.9985, 0.9965, 0.9932, 0.988, 0.9744, 0.9498, 0.9122, 0.8573, 0.8068, 0.7758], "wheels": [{ "u": 0.2125, "radius": 0.385 }, { "u": 0.8292, "radius": 0.385 }], "cockpitFloor": 0.4652 };
+
+// src/stage.js
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { Reflector } from "three/addons/objects/Reflector.js";
+
+// src/math.js
+var lerp = (a, b, t) => a + (b - a) * t;
+var clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
+function sampleArray(arr, t) {
+  const f = clamp(t) * (arr.length - 1);
+  const i = Math.min(arr.length - 2, Math.floor(f));
+  return lerp(arr[i], arr[i + 1], f - i);
+}
+var easeInOutCubic = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+var approach = (cur, target, step) => cur < target ? Math.min(target, cur + step) : Math.max(target, cur - step);
+
+// src/views.js
+var VIEWS = {
+  reset: { position: [5.6, 2.4, 4.8], target: [0, 0.55, 0] },
+  top: { position: [-1e-3, 9.5, 0], target: [0, 0.4, 0] },
+  side: { position: [0, 0.75, -8.6], target: [0, 0.55, 0] },
+  front: { position: [8.6, 0.8, 0], target: [0, 0.55, 0] }
+};
+var VIEW_DURATION = 0.8;
+var MAX_POLAR_ANGLE = 1.56;
+function toSpherical([x, y, z], [tx, ty, tz]) {
+  const dx = x - tx, dy = y - ty, dz = z - tz;
+  const r = Math.hypot(dx, dy, dz);
+  return { r, phi: Math.acos(clamp(dy / r, -1, 1)), theta: Math.atan2(dx, dz) };
+}
+function fromSpherical({ r, phi, theta }, [tx, ty, tz]) {
+  return [tx + r * Math.sin(phi) * Math.sin(theta), ty + r * Math.cos(phi), tz + r * Math.sin(phi) * Math.cos(theta)];
+}
+function shortestAngle(a, b) {
+  let d = (b - a) % (2 * Math.PI);
+  if (d > Math.PI) d -= 2 * Math.PI;
+  if (d < -Math.PI) d += 2 * Math.PI;
+  return d;
+}
+function interpolateView(from, to, t) {
+  const e = easeInOutCubic(t);
+  const target = [0, 1, 2].map((i) => lerp(from.target[i], to.target[i], e));
+  const a = toSpherical(from.position, from.target);
+  const b = toSpherical(to.position, to.target);
+  const s = { r: lerp(a.r, b.r, e), phi: lerp(a.phi, b.phi, e), theta: a.theta + shortestAngle(a.theta, b.theta) * e };
+  return { position: fromSpherical(s, target), target };
+}
+function createViewAnimator(camera, controls) {
+  let anim = null;
+  return {
+    go(name) {
+      anim = { from: { position: camera.position.toArray(), target: controls.target.toArray() }, to: VIEWS[name], t: 0 };
+    },
+    get active() {
+      return anim !== null;
+    },
+    update(dt) {
+      if (!anim) return;
+      anim.t = Math.min(1, anim.t + dt / VIEW_DURATION);
+      const v = interpolateView(anim.from, anim.to, anim.t);
+      camera.position.set(...v.position);
+      controls.target.set(...v.target);
+      if (anim.t >= 1) anim = null;
+    }
+  };
+}
+
+// src/stage.js
+var PEDESTAL_HEIGHT = 0.08;
+function createPolarGrid() {
+  const g = new THREE.Group();
+  const mat = new THREE.LineBasicMaterial({ color: 3817552, transparent: true, opacity: 0.55 });
+  for (const r of [4, 6, 8, 11, 15, 20]) {
+    const pts = [];
+    for (let i = 0; i <= 128; i++) {
+      const a = i / 128 * Math.PI * 2;
+      pts.push(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r));
+    }
+    g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat));
+  }
+  for (let i = 0; i < 24; i++) {
+    const a = i / 24 * Math.PI * 2;
+    const p = (r) => new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r);
+    g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p(3.4), p(20)]), mat));
+  }
+  return g;
+}
+function createStage(canvas) {
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  const scene = new THREE.Scene();
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  pmrem.dispose();
+  const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
+  camera.position.set(5.6, 2.4, 4.8);
+  const controls = new OrbitControls(camera, canvas);
+  controls.target.set(0, 0.55, 0);
+  Object.assign(controls, { enableDamping: true, dampingFactor: 0.08, minDistance: 3, maxDistance: 16, maxPolarAngle: MAX_POLAR_ANGLE, enablePan: false });
+  const key = new THREE.DirectionalLight(16777215, 2.2);
+  key.position.set(4, 7, 3);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  Object.assign(key.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5, near: 1, far: 20 });
+  key.shadow.bias = -5e-4;
+  const rim = new THREE.DirectionalLight(16769732, 1);
+  rim.position.set(-5, 3, -4);
+  const hemi = new THREE.HemisphereLight(16777215, 2105376, 0.35);
+  scene.add(key, rim, hemi);
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.3, PEDESTAL_HEIGHT, 96), new THREE.MeshStandardMaterial({ color: 14273716, metalness: 0.2, roughness: 0.45 }));
+  disc.position.y = PEDESTAL_HEIGHT / 2;
+  disc.receiveShadow = true;
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(3.25, 0.025, 12, 128), new THREE.MeshStandardMaterial({ color: 13214812, metalness: 1, roughness: 0.3 }));
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = PEDESTAL_HEIGHT;
+  const inset = new THREE.Mesh(new THREE.CircleGeometry(2.7, 96), new THREE.MeshStandardMaterial({ color: 12106948, metalness: 0.6, roughness: 0.35 }));
+  inset.rotation.x = -Math.PI / 2;
+  inset.position.y = PEDESTAL_HEIGHT + 1e-3;
+  inset.receiveShadow = true;
+  scene.add(disc, ring, inset);
+  const grid = createPolarGrid();
+  const mirror = new Reflector(new THREE.CircleGeometry(40, 64), { textureWidth: 1024, textureHeight: 1024, color: 8947848 });
+  mirror.rotation.x = -Math.PI / 2;
+  const tint = new THREE.Mesh(new THREE.CircleGeometry(40, 64), new THREE.MeshBasicMaterial({ color: 15326672, transparent: true, opacity: 0.78 }));
+  tint.rotation.x = -Math.PI / 2;
+  tint.position.y = 2e-3;
+  scene.add(grid, mirror, tint);
+  const car = new THREE.Group();
+  car.position.y = PEDESTAL_HEIGHT;
+  scene.add(car);
+  function resize() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener("resize", resize);
+  resize();
+  return { renderer, scene, camera, controls, car, floors: { grid, mirror, tint }, lights: { key, rim, hemi } };
+}
+
+// src/themes.js
+import * as THREE2 from "three";
+var THEMES = {
+  gallery: { bg: ["#141a26", "#06080d"], grid: true, mirror: false, exposure: 1, hemi: 0.35, key: 2.2 },
+  studio: { bg: ["#f3ebe2", "#d9cdbf"], grid: false, mirror: true, exposure: 1.05, hemi: 0.6, key: 1.8 }
+};
+function gradientTexture([top, bottom]) {
+  const c = document.createElement("canvas");
+  c.width = 2;
+  c.height = 256;
+  const g = c.getContext("2d");
+  const grad = g.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, top);
+  grad.addColorStop(1, bottom);
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 2, 256);
+  const t = new THREE2.CanvasTexture(c);
+  t.colorSpace = THREE2.SRGBColorSpace;
+  return t;
+}
+function applyTheme(stage2, name) {
+  const th = THEMES[name];
+  const old = stage2.scene.background;
+  stage2.scene.background = gradientTexture(th.bg);
+  old?.dispose?.();
+  stage2.floors.grid.visible = th.grid;
+  stage2.floors.mirror.visible = th.mirror;
+  stage2.floors.tint.visible = th.mirror;
+  stage2.renderer.toneMappingExposure = th.exposure;
+  stage2.lights.hemi.intensity = th.hemi;
+  stage2.lights.key.intensity = th.key;
+  document.body.dataset.theme = name;
+  document.querySelectorAll("[data-theme-btn]").forEach((b) => b.classList.toggle("is-active", b.dataset.themeBtn === name));
+}
+
+// src/materials.js
+import * as THREE3 from "three";
+function createMaterials() {
+  const std = (o) => new THREE3.MeshStandardMaterial(o);
+  return {
+    paint: new THREE3.MeshPhysicalMaterial({ color: 10358548, metalness: 0.55, roughness: 0.28, clearcoat: 1, clearcoatRoughness: 0.06, side: THREE3.DoubleSide }),
+    trim: std({ color: 1184276, metalness: 0.4, roughness: 0.35, side: THREE3.DoubleSide }),
+    glass: new THREE3.MeshPhysicalMaterial({ color: 2240568, roughness: 0.05, transparent: true, opacity: 0.35, side: THREE3.DoubleSide }),
+    tire: std({ color: 1381653, roughness: 0.85, metalness: 0 }),
+    rim: std({ color: 3815998, metalness: 0.9, roughness: 0.3 }),
+    copper: std({ color: 12088115, metalness: 1, roughness: 0.32 }),
+    aluminum: std({ color: 13159634, metalness: 1, roughness: 0.28 }),
+    steel: std({ color: 9080726, metalness: 0.9, roughness: 0.42 }),
+    brass: std({ color: 13214812, metalness: 1, roughness: 0.3 }),
+    seat: std({ color: 15260870, roughness: 0.7, metalness: 0 }),
+    interior: std({ color: 1841949, roughness: 0.6, metalness: 0.1, side: THREE3.DoubleSide }),
+    screen: std({ color: 659220, emissive: 2781082, emissiveIntensity: 0.6, roughness: 0.2 }),
+    headlight: std({ color: 14674421, emissive: 13625087, emissiveIntensity: 0, roughness: 0.15 }),
+    taillight: std({ color: 5899528, emissive: 16722464, emissiveIntensity: 0, roughness: 0.2 }),
+    battery: std({ color: 2837102, metalness: 0.5, roughness: 0.4 })
+  };
+}
+
+// src/registry.js
+var GROUPS = ["exterior", "wheels", "interior", "chassis"];
+function createRegistry() {
+  const parts = [];
+  return {
+    parts,
+    add(spec2) {
+      if (!GROUPS.includes(spec2.group)) throw new Error(`unknown group: ${spec2.group}`);
+      if (parts.some((p) => p.name === spec2.name)) throw new Error(`duplicate part: ${spec2.name}`);
+      const o = spec2.object3d;
+      const part = {
+        name: spec2.name,
+        group: spec2.group,
+        object3d: o,
+        home: { position: [o.position.x, o.position.y, o.position.z], rotation: [o.rotation.x, o.rotation.y, o.rotation.z] },
+        explode: { offset: spec2.explode.offset, rotate: spec2.explode.rotate ?? [0, 0, 0] }
+      };
+      o.userData.partName = spec2.name;
+      parts.push(part);
+      return part;
+    },
+    byGroup: (g) => parts.filter((p) => p.group === g),
+    get: (name) => parts.find((p) => p.name === name),
+    count: () => parts.length
+  };
+}
+
+// src/explode.js
+var GROUP_PHASE = { exterior: 0, interior: 1, wheels: 1, chassis: 2 };
+var STAGGER = 0.4;
+var DURATION = 1.5;
+var localProgress = (t, group) => clamp((t - GROUP_PHASE[group] / 2 * STAGGER) / (1 - STAGGER));
+function applyExplode(registry2, t) {
+  for (const p of registry2.parts) {
+    const e = easeInOutCubic(localProgress(t, p.group));
+    const [hx, hy, hz] = p.home.position;
+    const [ox, oy, oz] = p.explode.offset;
+    const [rx, ry, rz] = p.home.rotation;
+    const [ax, ay, az] = p.explode.rotate;
+    p.object3d.position.set(hx + ox * e, hy + oy * e, hz + oz * e);
+    p.object3d.rotation.set(rx + ax * e, ry + ay * e, rz + az * e);
+  }
+}
+function createExplodeController(registry2) {
+  let value = 0;
+  let target = 0;
+  return {
+    get value() {
+      return value;
+    },
+    get exploded() {
+      return target === 1;
+    },
+    toggle() {
+      target = target === 1 ? 0 : 1;
+      return target === 1;
+    },
+    update(dt) {
+      const prev = value;
+      value = approach(value, target, dt / DURATION);
+      if (value !== prev) applyExplode(registry2, value);
+    }
+  };
+}
+
+// src/drive.js
+var DOOR_ANGLE = 75 * Math.PI / 180;
+var DOOR_DURATION = 1.2;
+var WHEEL_SPEED = 6;
+var SPIN_ACCEL = 4;
+function createDrive({ hinges, spinners, lights }) {
+  let open = 0;
+  let target = 0;
+  let speed = 0;
+  return {
+    get running() {
+      return target === 1;
+    },
+    get openness() {
+      return open;
+    },
+    get speed() {
+      return speed;
+    },
+    toggle() {
+      target = target === 1 ? 0 : 1;
+      return target === 1;
+    },
+    update(dt) {
+      open = approach(open, target, dt / DOOR_DURATION);
+      const e = easeInOutCubic(open);
+      for (const { hinge, side } of hinges) {
+        hinge.rotation.z = -DOOR_ANGLE * e;
+        hinge.rotation.x = -side * 0.12 * e;
+      }
+      speed = approach(speed, target * WHEEL_SPEED, SPIN_ACCEL * dt);
+      for (const s of spinners) s.rotation.z -= speed * dt;
+      for (const { material, max } of lights) material.emissiveIntensity = lerp(0, max, e);
+    }
+  };
+}
+
+// src/ui.js
+import * as THREE4 from "three";
+function findPartName(obj) {
+  for (let o = obj; o; o = o.parent) if (o.userData?.partName) return o.userData.partName;
+  return null;
+}
+function isTap(down, up, threshold = 8) {
+  if (!down || !up || down.id !== up.id) return false;
+  return Math.hypot(up.x - down.x, up.y - down.y) < threshold;
+}
+var shouldClearOnLeave = (pointerType) => pointerType === "mouse";
+function setupUI({ stage: stage2, registry: registry2, explode: explode2, drive: drive2, views: views2, applyTheme: applyTheme2 }) {
+  const $ = (id) => document.getElementById(id);
+  const btnDrive = $("btn-drive");
+  const btnExplode = $("btn-explode");
+  const tip = $("tooltip");
+  $("part-count").textContent = String(registry2.count());
+  btnDrive.addEventListener("click", () => {
+    const on = drive2.toggle();
+    btnDrive.textContent = on ? "\u505C\u6B62" : "\u59CB\u52D5";
+    btnDrive.classList.toggle("is-active", on);
+  });
+  btnExplode.addEventListener("click", () => {
+    const on = explode2.toggle();
+    btnExplode.textContent = on ? "\u7D44\u307F\u7ACB\u3066" : "\u30D1\u30FC\u30C4\u5206\u89E3";
+    btnExplode.classList.toggle("is-active", on);
+  });
+  document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => views2.go(b.dataset.view)));
+  $("btn-reset").addEventListener("click", () => views2.go("reset"));
+  document.querySelectorAll("[data-theme-btn]").forEach((b) => b.addEventListener("click", () => applyTheme2(b.dataset.themeBtn)));
+  const canvas = stage2.renderer.domElement;
+  const ray = new THREE4.Raycaster();
+  const ndc = new THREE4.Vector2();
+  const meshes = [];
+  stage2.car.traverse((o) => {
+    if (o.isMesh) meshes.push(o);
+  });
+  const highlightCache = /* @__PURE__ */ new Map();
+  const highlightOf = (mat) => {
+    if (!highlightCache.has(mat)) {
+      const h = mat.clone();
+      h.emissive = new THREE4.Color(13214812);
+      h.emissiveIntensity = 0.55;
+      highlightCache.set(mat, h);
+    }
+    return highlightCache.get(mat);
+  };
+  let current = null;
+  function setHighlight(name) {
+    if (name === current) return;
+    if (current) registry2.get(current).object3d.traverse((o) => {
+      if (o.isMesh && o.userData.baseMat) {
+        o.material = o.userData.baseMat;
+        delete o.userData.baseMat;
+      }
+    });
+    current = name;
+    if (name) registry2.get(name).object3d.traverse((o) => {
+      if (o.isMesh) {
+        o.userData.baseMat = o.material;
+        o.material = highlightOf(o.material);
+      }
+    });
+  }
+  function pick(x, y) {
+    const r = canvas.getBoundingClientRect();
+    ndc.set((x - r.left) / r.width * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, stage2.camera);
+    const hit = ray.intersectObjects(meshes, false)[0];
+    return hit ? findPartName(hit.object) : null;
+  }
+  function showTip(name, x, y) {
+    if (!name) {
+      tip.classList.remove("show");
+      return;
+    }
+    tip.textContent = name;
+    const tx = Math.min(x + 14, window.innerWidth - tip.offsetWidth - 8);
+    const ty = Math.min(y + 14, window.innerHeight - tip.offsetHeight - 8);
+    tip.style.transform = `translate(${tx}px, ${ty}px)`;
+    tip.classList.add("show");
+  }
+  let down = null;
+  let tipTimer = 0;
+  const clearAll = () => {
+    setHighlight(null);
+    showTip(null);
+  };
+  canvas.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse") return;
+    clearTimeout(tipTimer);
+    if (e.buttons) return;
+    const name = pick(e.clientX, e.clientY);
+    setHighlight(name);
+    showTip(name, e.clientX, e.clientY);
+    canvas.style.cursor = name ? "pointer" : "";
+  });
+  canvas.addEventListener("pointerleave", (e) => {
+    if (shouldClearOnLeave(e.pointerType)) clearAll();
+  });
+  canvas.addEventListener("pointerdown", (e) => {
+    down = { id: e.pointerId, x: e.clientX, y: e.clientY };
+  });
+  canvas.addEventListener("pointercancel", (e) => {
+    if (down && down.id === e.pointerId) down = null;
+  });
+  canvas.addEventListener("pointerup", (e) => {
+    const start = down;
+    if (start && start.id === e.pointerId) down = null;
+    if (e.pointerType === "mouse") return;
+    if (!isTap(start, { id: e.pointerId, x: e.clientX, y: e.clientY })) return;
+    const name = pick(e.clientX, e.clientY);
+    setHighlight(name);
+    showTip(name, e.clientX, e.clientY);
+    clearTimeout(tipTimer);
+    tipTimer = setTimeout(clearAll, 2e3);
+  });
+}
+
+// src/parts/exterior.js
+import * as THREE6 from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+
+// src/bodyLoft.js
+var CROWN = 0.04;
+var SEG = { bottom: 4, archwall: 3, archroof: 3, side: 16, top: 8, wall: 4, tub: 4 };
+var U_STEPS = 120;
+var uToX = (bp, u) => bp.length / 2 - u * bp.length;
+function profileAt(bp, u) {
+  const W = sampleArray(bp.halfWidth, u);
+  const T = sampleArray(bp.top, u);
+  const Bo = sampleArray(bp.bottomOuter, u);
+  const Bc = sampleArray(bp.bottomCenter, u);
+  const tpl = bp.template;
+  const hmax = tpl.indexOf(Math.max(...tpl)) / (tpl.length - 1);
+  const shape = (h) => h <= hmax ? sampleArray(tpl, h) : lerp(1, 0.8, ((h - hmax) / Math.max(1e-6, 1 - hmax)) ** 2);
+  const zOut = W * shape(0);
+  const zIn = Math.min(0.58 * W, 0.9 * zOut);
+  const zTop = 0.8 * W;
+  const hole = Math.min(sampleArray(bp.holeHalfWidth, u), 0.75 * W);
+  const yTop = (z) => T - CROWN * (z / zTop) ** 2;
+  const floor = hole > 0 ? Math.min(yTop(hole) - 0.05, bp.cockpitFloor) : yTop(0);
+  return { W, T, Bo, Bc, hole, zIn, zOut, zTop, floor, shape, yTop };
+}
+function rightContour(bp, u) {
+  const p = profileAt(bp, u);
+  const pts = [];
+  for (let k = 0; k <= SEG.bottom; k++) pts.push({ z: lerp(0, p.zIn, k / SEG.bottom), y: p.Bc, region: "bottom", h: 0 });
+  for (let k = 1; k <= SEG.archwall; k++) pts.push({ z: p.zIn, y: lerp(p.Bc, p.Bo, k / SEG.archwall), region: "archwall", h: 0 });
+  for (let k = 1; k <= SEG.archroof; k++) pts.push({ z: lerp(p.zIn, p.zOut, k / SEG.archroof), y: p.Bo, region: "archroof", h: 0 });
+  for (let k = 1; k <= SEG.side; k++) {
+    const h = k / SEG.side;
+    pts.push({ z: p.W * p.shape(h), y: lerp(p.Bo, p.T - CROWN, h), region: "side", h });
+  }
+  for (let k = 1; k <= SEG.top; k++) {
+    const z = lerp(p.zTop, p.hole, k / SEG.top);
+    pts.push({ z, y: p.yTop(z), region: "top", h: 1 });
+  }
+  for (let k = 1; k <= SEG.wall; k++) pts.push({ z: p.hole, y: lerp(p.yTop(p.hole), p.floor, k / SEG.wall), region: "wall", h: 1 });
+  for (let k = 1; k <= SEG.tub; k++) pts.push({ z: lerp(p.hole, 0, k / SEG.tub), y: p.floor, region: "tub", h: 1 });
+  return pts;
+}
+function ringAt(bp, u) {
+  const right = rightContour(bp, u).map((q) => ({ ...q, side: 1 }));
+  const left = right.map((q) => ({ ...q, z: -q.z, side: -1 })).reverse();
+  return right.concat(left);
+}
+var quadMeta = (ring, j, j2) => ring[j].side > 0 ? ring[j2] : ring[j];
+function loftGrid(bp, { include = () => true, uSteps = U_STEPS, caps = false } = {}) {
+  const rings = [];
+  for (let i = 0; i <= uSteps; i++) rings.push(ringAt(bp, i / uSteps));
+  const R = rings[0].length;
+  const pos = [];
+  for (let i = 0; i <= uSteps; i++) {
+    const x = uToX(bp, i / uSteps);
+    for (const q of rings[i]) pos.push(x, q.y, q.z);
+  }
+  const idx = [];
+  let quadCount = 0;
+  for (let i = 0; i < uSteps; i++) {
+    const uMid = (i + 0.5) / uSteps;
+    for (let j = 0; j < R; j++) {
+      const j2 = (j + 1) % R;
+      if (!include(uMid, quadMeta(rings[i], j, j2))) continue;
+      const a = i * R + j, b = i * R + j2, c = (i + 1) * R + j, d = (i + 1) * R + j2;
+      idx.push(a, c, b, b, c, d);
+      quadCount++;
+    }
+  }
+  if (caps) {
+    for (const i of [0, uSteps]) {
+      const ring = rings[i];
+      const cy = ring.reduce((s, q) => s + q.y, 0) / R;
+      const center = pos.length / 3;
+      pos.push(uToX(bp, i / uSteps), cy, 0);
+      const flip = i === 0;
+      for (let j = 0; j < R; j++) {
+        const j2 = (j + 1) % R;
+        if (flip) idx.push(center, i * R + j2, i * R + j);
+        else idx.push(center, i * R + j, i * R + j2);
+      }
+    }
+  }
+  return compact(pos, idx, quadCount);
+}
+function compact(pos, idx, quadCount) {
+  const map = /* @__PURE__ */ new Map();
+  const out = [];
+  const indices = idx.map((v) => {
+    if (!map.has(v)) {
+      map.set(v, out.length / 3);
+      out.push(pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]);
+    }
+    return map.get(v);
+  });
+  return { positions: new Float32Array(out), indices: new Uint32Array(indices), quadCount, vertexCount: out.length / 3 };
+}
+function pointOnSide(bp, u, h, side = 1) {
+  const p = profileAt(bp, u);
+  return [uToX(bp, u), lerp(p.Bo, p.T - CROWN, h), side * p.W * p.shape(h)];
+}
+function cockpitRange(bp) {
+  const n = bp.samples - 1;
+  const idx = bp.holeHalfWidth.map((v, i) => v > 0 ? i : -1).filter((i) => i >= 0);
+  return { u0: idx[0] / n, u1: idx[idx.length - 1] / n };
+}
+function panelRegions(bp) {
+  const { u0, u1 } = cockpitRange(bp);
+  const doorEnd = u0 + 0.55 * (u1 - u0);
+  const door = (sign) => (u, m) => m.region === "side" && m.side === sign && m.h > 0.3 && u > u0 - 0.03 && u < doorEnd;
+  return {
+    hood: (u, m) => m.region === "top" && u > 0.07 && u < u0 - 0.015,
+    trunk: (u, m) => m.region === "top" && u > u1 + 0.03 && u < 0.94,
+    doorR: door(1),
+    doorL: door(-1)
+  };
+}
+function shellInclude(bp) {
+  const regions = Object.values(panelRegions(bp));
+  return (u, m) => !regions.some((f) => f(u, m));
+}
+
+// src/parts/util.js
+import * as THREE5 from "three";
+var alongZ = (g) => {
+  g.rotateX(Math.PI / 2);
+  return g;
+};
+function maxBcOverX(bp, xLo, xHi, steps = 40) {
+  let m = -Infinity;
+  for (let i = 0; i <= steps; i++) {
+    const x = xLo + (xHi - xLo) * i / steps;
+    const u = Math.min(1, Math.max(0, (bp.length / 2 - x) / bp.length));
+    const p = profileAt(bp, u);
+    if (p.Bc > m) m = p.Bc;
+  }
+  return m;
+}
+function loftToGeometry({ positions, indices }) {
+  const g = new THREE5.BufferGeometry();
+  g.setAttribute("position", new THREE5.BufferAttribute(positions, 3));
+  g.setIndex(new THREE5.BufferAttribute(indices, 1));
+  g.computeVertexNormals();
+  return g;
+}
+function mesh(geometry, material, pos = [0, 0, 0], rot = [0, 0, 0]) {
+  const m = new THREE5.Mesh(geometry, material);
+  m.position.set(...pos);
+  m.rotation.set(...rot);
+  return m;
+}
+function centered(geometry, material) {
+  geometry.computeBoundingBox();
+  const c = geometry.boundingBox.getCenter(new THREE5.Vector3());
+  geometry.translate(-c.x, -c.y, -c.z);
+  const outer = new THREE5.Group();
+  outer.position.copy(c);
+  outer.add(new THREE5.Mesh(geometry, material));
+  return outer;
+}
+function worldAssembly(meshes) {
+  const box = new THREE5.Box3();
+  for (const m of meshes) {
+    m.updateMatrix();
+    m.geometry.computeBoundingBox();
+    box.union(m.geometry.boundingBox.clone().applyMatrix4(m.matrix));
+  }
+  const c = box.getCenter(new THREE5.Vector3());
+  const outer = new THREE5.Group();
+  outer.position.copy(c);
+  for (const m of meshes) {
+    m.position.sub(c);
+    outer.add(m);
+  }
+  return outer;
+}
+function hinged(geometry, material, hingePoint) {
+  const outer = new THREE5.Group();
+  outer.position.copy(hingePoint);
+  const hinge = new THREE5.Group();
+  outer.add(hinge);
+  const m = new THREE5.Mesh(geometry, material);
+  m.position.copy(hingePoint).negate();
+  hinge.add(m);
+  outer.userData.hinge = hinge;
+  return outer;
+}
+function gridSurface(fn, nu, nv) {
+  const pos = [];
+  const idx = [];
+  for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) pos.push(...fn(-1 + 2 * i / nu, j / nv));
+  for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) {
+    const a = j * (nu + 1) + i, b = a + 1, c = a + nu + 1, d = c + 1;
+    idx.push(a, c, b, b, c, d);
+  }
+  const g = new THREE5.BufferGeometry();
+  g.setAttribute("position", new THREE5.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+var tubeThrough = (points, radius, segments = 64) => new THREE5.TubeGeometry(new THREE5.CatmullRomCurve3(points.map((p) => new THREE5.Vector3(...p))), segments, radius, 8, false);
+function seatLayout(bp) {
+  const { u0, u1 } = cockpitRange(bp);
+  const u = u0 + 0.62 * (u1 - u0);
+  const p = profileAt(bp, u);
+  return { u, x: uToX(bp, u), z: p.hole * 0.52, floor: p.floor };
+}
+function spec(name, group, object3d, offset, rotate) {
+  object3d.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
+    }
+  });
+  return { name, group, object3d, explode: { offset, rotate } };
+}
+
+// src/parts/exterior.js
+function buildExterior(bp, m) {
+  const regions = panelRegions(bp);
+  const { u0, u1 } = cockpitRange(bp);
+  const panel = (key) => loftToGeometry(loftGrid(bp, { include: regions[key] }));
+  const out = [];
+  out.push(spec("\u30DC\u30C7\u30A3\u30B7\u30A7\u30EB", "exterior", centered(loftToGeometry(loftGrid(bp, { include: shellInclude(bp), caps: true })), m.paint), [0, 1.6, 0]));
+  out.push(spec("\u30DC\u30F3\u30CD\u30C3\u30C8", "exterior", centered(panel("hood"), m.paint), [0.5, 1.25, 0], [0, 0, -0.2]));
+  out.push(spec("\u30C8\u30E9\u30F3\u30AF\u30EA\u30C3\u30C9", "exterior", centered(panel("trunk"), m.paint), [-0.5, 1.25, 0], [0, 0, 0.2]));
+  for (const [name, key, s] of [["\u30B7\u30B6\u30FC\u30C9\u30A2\u53F3", "doorR", 1], ["\u30B7\u30B6\u30FC\u30C9\u30A2\u5DE6", "doorL", -1]]) {
+    const g = panel(key);
+    g.computeBoundingBox();
+    const b = g.boundingBox;
+    const hingePoint = new THREE6.Vector3(b.max.x, b.max.y, (b.min.z + b.max.z) / 2);
+    out.push(spec(name, "exterior", hinged(g, m.paint, hingePoint), [0, 0.8, s * 1]));
+  }
+  const pLip = profileAt(bp, 0.04);
+  out.push(spec("\u30D5\u30ED\u30F3\u30C8\u30D0\u30F3\u30D1\u30FC", "exterior", worldAssembly([
+    mesh(new RoundedBoxGeometry(0.22, 0.035, 2 * pLip.zOut * 0.95, 2, 0.012), m.trim, [uToX(bp, 0.03), pLip.Bc + 0.018, 0])
+  ]), [1, 0.1, 0]));
+  const pD = profileAt(bp, 0.95);
+  const xD = uToX(bp, 0.955);
+  const diffuser = [mesh(new THREE6.BoxGeometry(0.32, 0.04, 2 * pD.zIn), m.trim, [xD, pD.Bc + 0.02, 0])];
+  for (let i = 0; i < 5; i++) diffuser.push(mesh(new THREE6.BoxGeometry(0.3, 0.09, 0.014), m.trim, [xD, pD.Bc + 0.065, (i - 2) * pD.zIn * 0.4]));
+  out.push(spec("\u30EA\u30A2\u30C7\u30A3\u30D5\u30E5\u30FC\u30B6\u30FC", "exterior", worldAssembly(diffuser), [-1, 0.1, 0]));
+  const ub = Math.max(0, u0 - 0.012);
+  const pb = profileAt(bp, ub);
+  const xb = uToX(bp, ub), yb = pb.T - 0.03;
+  const xt = xb - 0.52, yt = yb + 0.36, wb = 0.74 * pb.W, wt = 0.64 * pb.W;
+  const glass = gridSurface((s, v) => [lerp(xb, xt, v) - 0.07 * s * s, lerp(yb, yt, v) - 0.02 * s * s, s * lerp(wb, wt, v)], 12, 8);
+  const frame = tubeThrough([[xb - 0.07, yb - 0.02, -wb], [xt - 0.07, yt - 0.02, -wt], [xt, yt, 0], [xt - 0.07, yt - 0.02, wt], [xb - 0.07, yb - 0.02, wb]], 0.02);
+  out.push(spec("\u30D5\u30ED\u30F3\u30C8\u30AC\u30E9\u30B9", "exterior", worldAssembly([mesh(glass, m.glass), mesh(frame, m.trim)]), [0.35, 2.2, 0], [0, 0, 0.2]));
+  for (const [name, s] of [["\u30C9\u30A2\u30DF\u30E9\u30FC\u53F3", 1], ["\u30C9\u30A2\u30DF\u30E9\u30FC\u5DE6", -1]]) {
+    const [x, y, z] = pointOnSide(bp, u0 + 5e-3, 0.97, s);
+    const headGeom = new THREE6.SphereGeometry(1, 24, 16);
+    headGeom.scale(0.07, 0.045, 0.11);
+    out.push(spec(name, "exterior", worldAssembly([
+      mesh(new THREE6.CylinderGeometry(0.012, 0.012, 0.12, 8), m.trim, [x - 0.02, y + 0.03, z + s * 0.05], [Math.PI / 2, 0, 0]),
+      mesh(headGeom, m.trim, [x - 0.03, y + 0.07, z + s * 0.14])
+    ]), [0.2, 1, s * 1.4]));
+  }
+  for (const [name, s] of [["\u30D8\u30C3\u30C9\u30E9\u30A4\u30C8\u53F3", 1], ["\u30D8\u30C3\u30C9\u30E9\u30A4\u30C8\u5DE6", -1]]) {
+    const [x, y, z] = pointOnSide(bp, 0.07, 0.72, s);
+    const bladeLen = 0.18;
+    const shape = new THREE6.Shape();
+    shape.moveTo(0, 0);
+    shape.lineTo(-bladeLen, 0.035);
+    shape.lineTo(-bladeLen + 0.02, 0.05);
+    shape.lineTo(0.02, 0.03);
+    shape.closePath();
+    const g = new THREE6.ExtrudeGeometry(shape, { depth: 0.02, bevelEnabled: false });
+    g.translate(0, 0, -0.01);
+    out.push(spec(name, "exterior", worldAssembly([mesh(g, m.headlight, [x + 0.02, y, z + s * 5e-3], [0, s * 0.35, 0])]), [0.9, 0.95, s * 0.3]));
+  }
+  const pT = profileAt(bp, 0.985);
+  const xT = uToX(bp, 0.99), yT = pT.T - 0.07, wT = pT.W * 0.85;
+  const tailPts = Array.from({ length: 9 }, (_, i) => {
+    const z = -wT + 2 * wT * i / 8;
+    return [xT + 0.04 * (1 - (z / wT) ** 2), yT, z];
+  });
+  out.push(spec("\u30C6\u30FC\u30EB\u30E9\u30A4\u30C8\u30D0\u30FC", "exterior", worldAssembly([mesh(tubeThrough(tailPts, 0.013), m.taillight)]), [-0.9, 0.95, 0]));
+  const pG = profileAt(bp, 0.02);
+  const xG = uToX(bp, 0.012), gw = pG.zIn * 1.2;
+  const grille = [mesh(new THREE6.BoxGeometry(0.02, 0.13, gw), m.interior, [xG - 0.01, pG.Bc + 0.1, 0])];
+  for (let i = 0; i < 5; i++) grille.push(mesh(new THREE6.BoxGeometry(0.035, 0.01, gw * 0.96), m.trim, [xG, pG.Bc + 0.045 + i * 0.025, 0]));
+  out.push(spec("\u30D5\u30ED\u30F3\u30C8\u30B0\u30EA\u30EB", "exterior", worldAssembly(grille), [1.35, 0.3, 0]));
+  const [wf, wr] = bp.wheels;
+  const ua = wf.u + wf.radius / bp.length + 0.03;
+  const ue = wr.u - wr.radius / bp.length - 0.03;
+  const um = (ua + ue) / 2;
+  const len = (ue - ua) * bp.length;
+  const pS = profileAt(bp, um);
+  for (const [name, s] of [["\u30B5\u30A4\u30C9\u30B9\u30AB\u30FC\u30C8\u53F3", 1], ["\u30B5\u30A4\u30C9\u30B9\u30AB\u30FC\u30C8\u5DE6", -1]]) {
+    const [x, , z] = pointOnSide(bp, um, 0, s);
+    out.push(spec(name, "exterior", worldAssembly([
+      mesh(new RoundedBoxGeometry(len, 0.06, 0.05, 2, 0.015), m.trim, [x, pS.Bo + 0.01, z]),
+      mesh(new THREE6.BoxGeometry(len * 0.9, 6e-3, 0.01), m.copper, [x, pS.Bo + 0.045, z + s * 0.022])
+    ]), [0, 0.25, s * 1.2]));
+  }
+  const uH = Math.min(0.99, u1 + 0.02);
+  const pH = profileAt(bp, uH);
+  const xH = uToX(bp, uH);
+  const seat = seatLayout(bp);
+  const hoops = [-seat.z, seat.z].map((z0) => {
+    const pts = Array.from({ length: 9 }, (_, k) => {
+      const a = Math.PI * k / 8;
+      return [xH, pH.T - 0.02 + 0.3 * Math.sin(a), z0 - 0.19 * Math.cos(a)];
+    });
+    return mesh(tubeThrough(pts, 0.022), m.trim);
+  });
+  out.push(spec("\u30ED\u30FC\u30EB\u30D5\u30FC\u30D7", "exterior", worldAssembly(hoops), [-0.3, 2, 0]));
+  return out;
+}
+
+// src/parts/wheels.js
+import * as THREE7 from "three";
+import { RoundedBoxGeometry as RoundedBoxGeometry2 } from "three/addons/geometries/RoundedBoxGeometry.js";
+var TIRE_WIDTH = 0.24;
+function spinning(position, children) {
+  const outer = new THREE7.Group();
+  outer.position.set(...position);
+  const spin = new THREE7.Group();
+  for (const c of children) spin.add(c);
+  outer.add(spin);
+  outer.userData.spin = spin;
+  return outer;
+}
+function tireGeometry(R, w) {
+  const ri = 0.72 * R;
+  const pts = [[ri, -w / 2], [R - 0.03, -w / 2], [R - 5e-3, -w / 2 + 0.02], [R, -w / 2 + 0.05], [R, w / 2 - 0.05], [R - 5e-3, w / 2 - 0.02], [R - 0.03, w / 2], [ri, w / 2]].map(([x, y]) => new THREE7.Vector2(x, y));
+  return new THREE7.LatheGeometry(pts, 64);
+}
+function rimChildren(R, s, m) {
+  const ri = 0.72 * R;
+  const face = s * (TIRE_WIDTH / 2 - 0.03);
+  const kids = [
+    mesh(alongZ(new THREE7.CylinderGeometry(ri, ri, TIRE_WIDTH * 0.9, 48, 1, true)), m.rim),
+    mesh(alongZ(new THREE7.CylinderGeometry(0.06, 0.06, 0.05, 24)), m.copper, [0, 0, face]),
+    mesh(new THREE7.TorusGeometry(ri * 0.97, 6e-3, 6, 64), m.copper, [0, 0, face])
+  ];
+  for (let k = 0; k < 5; k++) {
+    const a = k / 5 * Math.PI * 2;
+    const spoke = new THREE7.BoxGeometry(0.045, ri * 0.92, 0.022);
+    spoke.translate(0, ri * 0.46, 0);
+    const sp = mesh(spoke, m.rim, [0, 0, face]);
+    sp.rotation.set(0, 0.35 * s, a, "ZYX");
+    kids.push(sp);
+  }
+  return kids;
+}
+function buildWheels(bp, m) {
+  const [front, rear] = bp.wheels;
+  const out = [];
+  for (const [axle, wheel] of [["\u524D", front], ["\u5F8C", rear]]) {
+    const R = wheel.radius;
+    const x = uToX(bp, wheel.u);
+    const W = profileAt(bp, wheel.u).W;
+    for (const [side, s] of [["\u53F3", 1], ["\u5DE6", -1]]) {
+      const zc = s * (W - 0.02 - TIRE_WIDTH / 2);
+      const pos = side + axle;
+      const rd = 0.58 * R;
+      const zDisc = zc - s * 0.05;
+      out.push(spec(`${pos}\u30BF\u30A4\u30E4`, "wheels", spinning([x, R, zc], [mesh(alongZ(tireGeometry(R, TIRE_WIDTH)), m.tire)]), [0, 0.3, s * 0.95]));
+      out.push(spec(`${pos}\u30DB\u30A4\u30FC\u30EB`, "wheels", spinning([x, R, zc], rimChildren(R, s, m)), [0, 0.3, s * 0.65]));
+      out.push(spec(`${pos}\u30D6\u30EC\u30FC\u30AD\u30C7\u30A3\u30B9\u30AF`, "wheels", spinning([x, R, zDisc], [
+        mesh(alongZ(new THREE7.CylinderGeometry(rd, rd, 0.028, 48)), m.steel),
+        mesh(alongZ(new THREE7.CylinderGeometry(rd * 0.4, rd * 0.4, 0.06, 32)), m.copper)
+      ]), [0, 0.3, s * 0.4]));
+      const caliper = new THREE7.Group();
+      caliper.position.set(x - rd * 0.6, R + rd * 0.6, zDisc);
+      caliper.rotation.z = Math.PI / 4;
+      caliper.add(mesh(new RoundedBoxGeometry2(0.16, 0.09, 0.07, 2, 0.02), m.copper));
+      out.push(spec(`${pos}\u30AD\u30E3\u30EA\u30D1\u30FC`, "wheels", caliper, [0, 0.45, s * 0.25]));
+    }
+  }
+  return out;
+}
+
+// src/parts/interior.js
+import * as THREE8 from "three";
+import { RoundedBoxGeometry as RoundedBoxGeometry3 } from "three/addons/geometries/RoundedBoxGeometry.js";
+function buildInterior(bp, m) {
+  const seat = seatLayout(bp);
+  const { u0, u1 } = cockpitRange(bp);
+  const f = seat.floor;
+  const out = [];
+  for (const [name, s] of [["\u30B7\u30FC\u30C8\u53F3", 1], ["\u30B7\u30FC\u30C8\u5DE6", -1]]) {
+    const z = s * seat.z;
+    out.push(spec(name, "interior", worldAssembly([
+      mesh(new RoundedBoxGeometry3(0.46, 0.1, 0.4, 3, 0.04), m.seat, [seat.x, f + 0.08, z]),
+      mesh(new RoundedBoxGeometry3(0.1, 0.52, 0.4, 3, 0.04), m.seat, [seat.x - 0.24, f + 0.35, z], [0, 0, 0.22]),
+      mesh(new RoundedBoxGeometry3(0.08, 0.15, 0.26, 3, 0.035), m.seat, [seat.x - 0.31, f + 0.66, z], [0, 0, 0.22]),
+      mesh(new THREE8.BoxGeometry(0.012, 0.48, 0.012), m.copper, [seat.x - 0.2, f + 0.35, z + 0.2], [0, 0, 0.22]),
+      mesh(new THREE8.BoxGeometry(0.012, 0.48, 0.012), m.copper, [seat.x - 0.2, f + 0.35, z - 0.2], [0, 0, 0.22])
+    ]), [0, 0.75, s * 0.3]));
+  }
+  const uDash = u0 + 0.1 / bp.length;
+  const pd = profileAt(bp, uDash);
+  const xDash = uToX(bp, u0) - 0.1;
+  const yDash = pd.T - 0.12;
+  const dashW = Math.min(2 * (seat.z + 0.24), 2 * pd.hole * 0.95);
+  out.push(spec("\u30C0\u30C3\u30B7\u30E5\u30DC\u30FC\u30C9", "interior", worldAssembly([
+    mesh(new RoundedBoxGeometry3(0.28, 0.13, dashW, 3, 0.04), m.interior, [xDash, yDash, 0]),
+    mesh(new THREE8.BoxGeometry(0.01, 0.012, dashW * 0.9), m.copper, [xDash - 0.141, yDash + 0.02, 0])
+  ]), [0.45, 0.9, 0]));
+  const zDrv = -seat.z;
+  const xSw = xDash - 0.26, ySw = yDash - 0.04;
+  const rimGeom = new THREE8.TorusGeometry(0.15, 0.018, 12, 48);
+  rimGeom.scale(1, 0.8, 1);
+  const swRim = mesh(rimGeom, m.interior, [xSw, ySw, zDrv]);
+  swRim.rotation.set(0, Math.PI / 2, 0.35, "ZYX");
+  out.push(spec("\u30B9\u30C6\u30A2\u30EA\u30F3\u30B0", "interior", worldAssembly([
+    swRim,
+    mesh(new THREE8.BoxGeometry(0.02, 0.022, 0.26), m.copper, [xSw, ySw, zDrv], [0, 0, 0.35]),
+    mesh(new THREE8.CylinderGeometry(0.02, 0.02, 0.22, 12), m.steel, [xSw + 0.1, ySw + 0.03, zDrv], [0, 0, Math.PI / 2 + 0.35])
+  ]), [0.25, 1.05, -0.1]));
+  out.push(spec("\u30E1\u30FC\u30BF\u30FC\u30C7\u30A3\u30B9\u30D7\u30EC\u30A4", "interior", worldAssembly([
+    mesh(new THREE8.BoxGeometry(0.012, 0.085, 0.26), m.screen, [xDash - 0.15, yDash + 0.1, zDrv], [0, 0, 0.3])
+  ]), [0.45, 1.25, 0]));
+  out.push(spec("\u30BB\u30F3\u30BF\u30FC\u30B3\u30F3\u30BD\u30FC\u30EB", "interior", worldAssembly([
+    mesh(new RoundedBoxGeometry3(0.7, 0.14, 0.16, 3, 0.03), m.interior, [seat.x + 0.05, f + 0.07, 0]),
+    mesh(new THREE8.BoxGeometry(0.6, 6e-3, 0.02), m.copper, [seat.x + 0.05, f + 0.143, 0])
+  ]), [0, 0.6, 0]));
+  out.push(spec("\u30D5\u30ED\u30A2", "interior", worldAssembly([
+    mesh(gridSurface((s, v) => {
+      const u = lerp(u0, u1, v);
+      return [uToX(bp, u), f + 0.01, s * profileAt(bp, u).hole * 0.95];
+    }, 4, 24), m.interior)
+  ]), [0, 0.3, 0]));
+  return out;
+}
+
+// src/parts/chassis.js
+import * as THREE9 from "three";
+import { RoundedBoxGeometry as RoundedBoxGeometry4 } from "three/addons/geometries/RoundedBoxGeometry.js";
+function buildChassis(bp, m) {
+  const out = [];
+  const [wf, wr] = bp.wheels;
+  const xf = uToX(bp, wf.u), xr = uToX(bp, wr.u);
+  const railZ = 0.8 * profileAt(bp, 0.5).zIn;
+  const floor = seatLayout(bp).floor;
+  const fx0 = xf + 0.45, fx1 = xr - 0.3, fLen = fx0 - fx1, fMid = (fx0 + fx1) / 2;
+  const bx0 = xf - wf.radius - 0.15, bx1 = xr + wr.radius + 0.15;
+  const maxBcFrame = maxBcOverX(bp, fx1, fx0);
+  const railH = 0.03;
+  const bandLow = Math.max(maxBcFrame + 0.01, wf.radius + 0.04);
+  const bandHigh = floor - 5e-3;
+  if (bandLow + railH > bandHigh) {
+    throw new Error(`\u30B7\u30E3\u30FC\u30B7\u30D5\u30EC\u30FC\u30E0\u306E\u9AD8\u3055\u5E2F\u304C\u53CD\u8EE2\uFF08\u307E\u305F\u306F\u30EC\u30FC\u30EB\u9AD8\u3088\u308A\u72ED\u3044\uFF09: \u4E0B\u9650 ${bandLow.toFixed(4)} + \u30EC\u30FC\u30EB\u9AD8 ${railH} > \u4E0A\u9650 ${bandHigh.toFixed(4)}\uFF08\u8ECA\u4F53\u4E0B\u9762\u306E\u6700\u9AD8\u70B9 ${maxBcFrame.toFixed(4)}\u3001\u5185\u88C5\u30D5\u30ED\u30A2 ${floor.toFixed(4)}\uFF09\u3002blueprint \u3092\u78BA\u8A8D\u3057\u3066\u304F\u3060\u3055\u3044\u3002`);
+  }
+  const yFrame = (bandLow + bandHigh) / 2;
+  const frame = [
+    mesh(new THREE9.BoxGeometry(fLen, railH, 0.05), m.steel, [fMid, yFrame, railZ]),
+    mesh(new THREE9.BoxGeometry(fLen, railH, 0.05), m.steel, [fMid, yFrame, -railZ])
+  ];
+  for (const cx of [fx0, bx0 + 0.04, bx1 - 0.04, fx1]) frame.push(mesh(new THREE9.BoxGeometry(0.05, railH, 2 * railZ), m.steel, [cx, yFrame, 0]));
+  out.push(spec("\u30B7\u30E3\u30FC\u30B7\u30D5\u30EC\u30FC\u30E0", "chassis", worldAssembly(frame), [0, 0, 0]));
+  const bLen = bx0 - bx1, bMid = (bx0 + bx1) / 2, bW = 2 * railZ - 0.08;
+  const maxBcBattery = maxBcOverX(bp, bx1, bx0);
+  const battLow = maxBcBattery + 5e-3;
+  const battHigh = floor - 5e-3;
+  const battBudget = battHigh - battLow;
+  if (battBudget <= 0) {
+    throw new Error(`\u30D0\u30C3\u30C6\u30EA\u30FC\u306E\u9AD8\u3055\u4E88\u7B97\u304C\u3042\u308A\u307E\u305B\u3093: ${battBudget.toFixed(4)} m\uFF08\u4E0B\u9650 ${battLow.toFixed(4)} \u2265 \u4E0A\u9650 ${battHigh.toFixed(4)}\uFF09\u3002blueprint \u3092\u78BA\u8A8D\u3057\u3066\u304F\u3060\u3055\u3044\u3002`);
+  }
+  const trayH = 0.01, connH = 8e-3;
+  const moduleH = Math.max(0.02, battBudget - trayH - connH - 4e-3);
+  const caseWallH = trayH + moduleH;
+  const trayY = battLow + trayH / 2;
+  const wallY = battLow + caseWallH / 2;
+  const moduleY = battLow + trayH + moduleH / 2;
+  const connY = battLow + trayH + moduleH + connH / 2;
+  out.push(spec("\u30D0\u30C3\u30C6\u30EA\u30FC\u30B1\u30FC\u30B9", "chassis", worldAssembly([
+    mesh(new THREE9.BoxGeometry(bLen, trayH, bW), m.aluminum, [bMid, trayY, 0]),
+    mesh(new THREE9.BoxGeometry(bLen, caseWallH, 0.015), m.aluminum, [bMid, wallY, bW / 2]),
+    mesh(new THREE9.BoxGeometry(bLen, caseWallH, 0.015), m.aluminum, [bMid, wallY, -bW / 2])
+  ]), [0, 0.05, 0]));
+  let k = 0;
+  for (let ix = 0; ix < 3; ix++) for (const iz of [-1, 1]) {
+    k++;
+    const mx = bMid + (ix - 1) * bLen / 3, mz = iz * bW / 4;
+    out.push(spec(`\u30D0\u30C3\u30C6\u30EA\u30FC\u30E2\u30B8\u30E5\u30FC\u30EB${k}`, "chassis", worldAssembly([
+      mesh(new RoundedBoxGeometry4(bLen / 3 - 0.04, moduleH, bW / 2 - 0.04, 2, 8e-3), m.battery, [mx, moduleY, mz]),
+      mesh(new THREE9.BoxGeometry(0.05, connH, 0.08), m.copper, [mx, connY, mz])
+    ]), [(ix - 1) * 0.35, 0.12, iz * 0.45]));
+  }
+  for (const [name, x, R, sgn] of [["\u30D5\u30ED\u30F3\u30C8\u30E2\u30FC\u30BF\u30FC", xf, wf.radius, 1], ["\u30EA\u30A2\u30E2\u30FC\u30BF\u30FC", xr, wr.radius, -1]]) {
+    out.push(spec(name, "chassis", worldAssembly([
+      mesh(alongZ(new THREE9.CylinderGeometry(0.13, 0.13, 0.3, 32)), m.aluminum, [x, R, 0]),
+      mesh(new THREE9.TorusGeometry(0.13, 0.018, 10, 40), m.copper, [x, R, 0.13]),
+      mesh(new THREE9.TorusGeometry(0.13, 0.018, 10, 40), m.copper, [x, R, -0.13]),
+      mesh(alongZ(new THREE9.CylinderGeometry(0.05, 0.05, 0.38, 16)), m.steel, [x, R, 0])
+    ]), [sgn * 0.75, 0.15, 0]));
+  }
+  const inverter = [mesh(new RoundedBoxGeometry4(0.25, 0.08, 0.3, 2, 0.015), m.aluminum, [xr + 0.32, wr.radius + 0.12, 0])];
+  for (let i = 0; i < 5; i++) inverter.push(mesh(new THREE9.BoxGeometry(0.22, 0.03, 8e-3), m.steel, [xr + 0.32, wr.radius + 0.175, -0.12 + i * 0.06]));
+  out.push(spec("\u30A4\u30F3\u30D0\u30FC\u30BF\u30FC", "chassis", worldAssembly(inverter), [-1, 0.45, 0]));
+  for (const [axle, x, w] of [["\u524D", xf, wf], ["\u5F8C", xr, wr]]) {
+    const W = profileAt(bp, w.u).W;
+    for (const [side, s] of [["\u53F3", 1], ["\u5DE6", -1]]) {
+      const zHub = s * (W - 0.02 - TIRE_WIDTH - 0.02);
+      const z0 = s * 0.19;
+      out.push(spec(`\u30C9\u30E9\u30A4\u30D6\u30B7\u30E3\u30D5\u30C8${side}${axle}`, "chassis", worldAssembly([
+        mesh(alongZ(new THREE9.CylinderGeometry(0.022, 0.022, Math.abs(zHub - z0), 12)), m.steel, [x, w.radius, (z0 + zHub) / 2]),
+        mesh(new THREE9.SphereGeometry(0.04, 16, 12), m.interior, [x, w.radius, z0 + s * 0.03]),
+        mesh(new THREE9.SphereGeometry(0.04, 16, 12), m.interior, [x, w.radius, zHub - s * 0.03])
+      ]), [0, 0.1, s * 0.45]));
+      const zS = s * (W - 0.02 - TIRE_WIDTH - 0.08);
+      const y0 = w.radius - 0.02;
+      const helix = Array.from({ length: 73 }, (_, i) => {
+        const a = i / 72 * Math.PI * 2 * 6;
+        return [x - 0.1 + 0.045 * Math.cos(a), y0 + 0.32 * i / 72, zS + 0.045 * Math.sin(a)];
+      });
+      out.push(spec(`\u30B5\u30B9\u30DA\u30F3\u30B7\u30E7\u30F3${side}${axle}`, "chassis", worldAssembly([
+        mesh(tubeThrough(helix, 8e-3, 240), m.copper),
+        mesh(new THREE9.CylinderGeometry(0.022, 0.022, 0.4, 12), m.aluminum, [x - 0.1, y0 + 0.16, zS])
+      ]), [0, 0.55, s * 0.55]));
+    }
+  }
+  const rackHousingR = 0.045;
+  const yRack = Math.min(wf.radius + 0.02, yFrame - railH / 2 - 3e-3 - rackHousingR);
+  out.push(spec("\u30B9\u30C6\u30A2\u30EA\u30F3\u30B0\u30E9\u30C3\u30AF", "chassis", worldAssembly([
+    mesh(alongZ(new THREE9.CylinderGeometry(0.03, 0.03, 2 * railZ + 0.1, 16)), m.steel, [xf + 0.2, yRack, 0]),
+    mesh(alongZ(new THREE9.CylinderGeometry(rackHousingR, rackHousingR, 0.18, 16)), m.aluminum, [xf + 0.2, yRack, -0.15])
+  ]), [0.55, 0.1, 0]));
+  const xRad = uToX(bp, 0.06);
+  const pR = profileAt(bp, 0.06);
+  const radW = Math.min(0.8, 2 * pR.zIn * 0.9);
+  const yRad = pR.Bc + 0.18;
+  const radiator = [mesh(new THREE9.BoxGeometry(0.05, 0.26, radW), m.aluminum, [xRad, yRad, 0])];
+  for (let i = 0; i < 8; i++) radiator.push(mesh(new THREE9.BoxGeometry(0.056, 8e-3, radW * 0.95), m.steel, [xRad, yRad - 0.11 + i * 0.031, 0]));
+  out.push(spec("\u30E9\u30B8\u30A8\u30FC\u30BF\u30FC", "chassis", worldAssembly(radiator), [1.3, 0.35, 0]));
+  return out;
+}
+
+// src/main.js
+var BUILDERS = [buildExterior, buildWheels, buildInterior, buildChassis];
+var stage = createStage(document.getElementById("stage"));
+applyTheme(stage, "gallery");
+var views = createViewAnimator(stage.camera, stage.controls);
+var mats = createMaterials();
+var registry = createRegistry();
+for (const build of BUILDERS) {
+  for (const s of build(BLUEPRINT, mats)) {
+    stage.car.add(s.object3d);
+    registry.add(s);
+  }
+}
+var explode = createExplodeController(registry);
+var drive = createDrive({
+  hinges: [["\u30B7\u30B6\u30FC\u30C9\u30A2\u53F3", 1], ["\u30B7\u30B6\u30FC\u30C9\u30A2\u5DE6", -1]].map(([name, side]) => ({ hinge: registry.get(name).object3d.userData.hinge, side })),
+  spinners: registry.parts.map((p) => p.object3d.userData.spin).filter(Boolean),
+  lights: [{ material: mats.headlight, max: 2.5 }, { material: mats.taillight, max: 3 }]
+});
+setupUI({ stage, registry, explode, drive, views, applyTheme: (n) => applyTheme(stage, n) });
+var clock = new THREE10.Clock();
+stage.renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  explode.update(dt);
+  drive.update(dt);
+  views.update(dt);
+  stage.controls.update();
+  stage.renderer.render(stage.scene, stage.camera);
+});
+window.__viewer = { stage, views, registry, explode, drive, applyTheme: (n) => applyTheme(stage, n) };
+</script>
+</body>
+</html>
